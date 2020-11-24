@@ -1,0 +1,355 @@
+---
+- hosts:
+    - localhost
+  gather_facts: false
+  tasks:
+    - name: "Waiting for SSH(TCP/22) on All Hosts"
+      wait_for:
+        timeout: 600
+        host: "{{ item }}"
+        port: 22
+        sleep: 3
+      with_items:
+        - "{{ groups['all'] }}"
+
+- hosts:
+    - all
+  gather_facts: true
+  vars_files:
+    - "vars-common.yml"
+    - "version_files.yml"
+  vars:
+    - greenplum_admin_user: "gpadmin"
+  tasks:
+    - name: "Set {{ gpadmin_user_home }}/gpconfigs/host_{{ item }}"
+      template:
+        src: "../templates/host_{{ item }}.j2"
+        dest: "{{ gpadmin_user_home }}/gpconfigs/host_{{ item }}"
+        owner: "{{ greenplum_admin_user }}"
+        group: "{{ greenplum_admin_user }}"
+        mode: '0644'
+        backup: yes
+      with_items:
+        - "all"
+        - "mst"
+        - "smst"
+        - "seg"
+      when: inventory_hostname in groups['gpdb-mdw'] or inventory_hostname in groups['gpdb-smdw']
+
+    - name: "Set {{ gpadmin_user_home }}/gpconfigs/hostname_{{ item }}"
+      template:
+        src: "../templates/hostname_{{ item }}.j2"
+        dest: "{{ gpadmin_user_home }}/gpconfigs/hostname_{{ item }}"
+        owner: "{{ greenplum_admin_user }}"
+        group: "{{ greenplum_admin_user }}"
+        mode: '0644'
+        backup: yes
+      with_items:
+        - "all"
+        - "mst"
+        - "seg"
+        - "smst"
+      when: inventory_hostname in groups['gpdb-mdw'] or inventory_hostname in groups['gpdb-smdw']
+
+    - name: remove greenplum-db package
+      yum:
+        name: greenplum-db*
+        state: absent
+
+    - name: "Check Backup GPDB directory (backup version)"
+      stat:
+        path: "/usr/local/greenplum-db-{{ gpdb_file_version }}_bak"
+      register: gpdb_b_dir
+
+    - name: "Delete Backup GPDB directory if exists (backup version)"
+      shell: "rm -rf /usr/local/greenplum-db-{{ gpdb_file_version }}_bak"
+      when: gpdb_b_dir.stat.exists == true
+
+    - name: "Check Original GPDB directory (new version)"
+      stat:
+        path: "/usr/local/greenplum-db-{{ gpdb_file_version }}"
+      register: gpdb_dir
+
+    - name: "Backup Original GPDB directory if exists (new version)"
+      shell: "cp -r /usr/local/greenplum-db-{{ gpdb_file_version }} /usr/local/greenplum-db-{{ gpdb_file_version }}_bak"
+      when: gpdb_dir.stat.exists == true
+
+    - name: "Delete Original GPDB directory if exists (new version)"
+      shell: "rm -rf /usr/local/greenplum-db-{{ gpdb_file_version }}"
+      when: gpdb_dir.stat.exists == true
+
+    - name: "Trasfer GPDB binary file"
+      copy:
+        src: "/data/staging/{{ gpdb_file_name }}"
+        dest: "/tmp/"
+
+    - name: install gpdb package
+      yum:
+        name: "/tmp/{{ gpdb_file_name }}"
+        state: present
+
+    - name: find install directory
+      find:
+        paths: "/usr/local"
+        patterns: 'greenplum*'
+        file_type: directory
+      register: installed_dir
+
+    - name: change install directory ownership
+      file:
+        path: '{{ item.path }}'
+        owner: "{{ greenplum_admin_user }}"
+        group: "{{ greenplum_admin_user }}"
+        recurse: yes
+      with_items: "{{ installed_dir.files }}"
+
+    - name: "create greenplum admin user"
+      user:
+        name: "{{ greenplum_admin_user }}"
+        state: present
+        groups: wheel
+        password: "{{ bd_ssh_gpadmin_pw | password_hash('sha512') }}"
+
+    - name: "Set bash_profile for GPDB Alias command"
+      template:
+        src: "../templates/bash_profile.with-gpdb-alias.j2"
+        dest: "{{ gpadmin_user_home }}/.bash_profile"
+        owner: "{{ greenplum_admin_user }}"
+        group: "{{ greenplum_admin_user }}"
+        mode: '0644'
+        backup: yes
+      when: inventory_hostname in groups['gpdb-mdw'] or inventory_hostname in groups['gpdb-smdw']
+
+    - name: "Set .bashrc for gpadmin User"
+      template:
+        src: "../templates/bashrc.gpadmin.j2"
+        dest: "{{ gpadmin_user_home }}/.bashrc"
+        owner: "{{ greenplum_admin_user }}"
+        group: "{{ greenplum_admin_user }}"
+        mode: '0644'
+        backup: yes
+
+    - name: "Setup 'mdw' Group: Create /data/master"
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+        owner: "{{ greenplum_admin_user }}"
+        group: "{{ greenplum_admin_user }}"
+      when: inventory_hostname in groups['gpdb-mdw'] or inventory_hostname in groups['gpdb-smdw']
+      with_items:
+        - "/data"
+        - "/data/master"
+
+    - name: "Change Owner: {{ gpdb_home }}*"
+      shell: "chown -R gpadmin:gpadmin {{ gpdb_home }}*"
+
+    - name: "Restart NTP"
+      systemd:
+        name: ntpd
+        state: restarted
+
+    - name: "Setup 'sdw' Group - Create Segment \"/data\" Directory (Primary, and Mirror)"
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+        owner: "{{ greenplum_admin_user }}"
+        group: "{{ greenplum_admin_user }}"
+      when: inventory_hostname in groups['gpdb-sdw'] and sel_data_path == 1
+      with_items:
+        - "/data"
+        - "{{ seg_data_dir_primary }}"
+        - "{{ seg_data_dir_mirror }}"
+
+    - name: "Setup 'sdw' Group - Create Segment \"/data1 /data2\" Directory (Primary, and Mirror)"
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+        owner: "{{ greenplum_admin_user }}"
+        group: "{{ greenplum_admin_user }}"
+      when: inventory_hostname in groups['gpdb-sdw'] and sel_data_path == 2
+      with_items:
+        - "/data1"
+        - "/data2"
+        - "{{ seg_data1_dir_primary }}"
+        - "{{ seg_data1_dir_mirror }}"
+        - "{{ seg_data2_dir_primary }}"
+        - "{{ seg_data2_dir_mirror }}"
+
+    - name: "Set {{ gpadmin_user_home }}/gpconfigs/init_hostname_seg"
+      shell: "cat {{ gpadmin_user_home }}/gpconfigs/hostname_seg | head -{{ segment_group_count }} > {{ gpadmin_user_home }}/gpconfigs/init_hostname_seg"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+      when: inventory_hostname in groups['gpdb-mdw'] or inventory_hostname in groups['gpdb-smdw']
+
+    - name: "Setup 'mdw' Group - Create {{ gpadmin_user_home }}/gpconfigs/gp.conf"
+      template:
+        src: "../templates/gp.conf.j2"
+        dest: "{{ gpadmin_user_home }}/gpconfigs/gp.conf"
+        owner: "{{ greenplum_admin_user }}"
+        group: "{{ greenplum_admin_user }}"
+        mode: '0644'
+        backup: yes
+      when: inventory_hostname in groups['gpdb-mdw'] or inventory_hostname in groups['gpdb-smdw']
+
+    - name: "Check Exist of 'MASTER_DATA_DIRECTORY'"
+      stat:
+        path: "{{ gpdb_master_data_directory }}"
+      register: stat_result
+      when: inventory_hostname in groups['gpdb-mdw'] or inventory_hostname in groups['gpdb-smdw']
+
+    - name: "Initialization GPDB Instance"
+      shell: "gpinitsystem -a -c {{ gpadmin_user_home }}/gpconfigs/gp.conf -n C -h {{ gpadmin_user_home }}/gpconfigs/init_hostname_seg"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+      ignore_errors: yes
+      failed_when: false
+      when: inventory_hostname in groups['gpdb-mdw'] and stat_result.stat.exists == false
+
+    - name: "Create 'cmds_gpconfig' Script (for 'postgresql.conf')"
+      template:
+        src: "../templates/cmds_gpconfig.sh.j2"
+        dest: "{{ cmds_gpconfig_file }}"
+        owner: "{{ greenplum_admin_user }}"
+        group: "{{ greenplum_admin_user }}"
+        mode: '0755'
+        backup: yes
+      register: _cmds_gpconfig_file
+      when: inventory_hostname in groups['gpdb-mdw'] or inventory_hostname in groups['gpdb-smdw']
+
+    - name: "Apply 'postgresql.conf' Server Configuration Parameters (Run cmds_gpconfig)"
+      shell: "{{ cmds_gpconfig_file }}"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+#      when: inventory_hostname in groups['gpdb-mdw'] and _cmds_gpconfig_file.changed == true
+      when: inventory_hostname in groups['gpdb-mdw']
+
+    - name: "Restart GPDB-Fast"
+      shell: "gpstop -M fast -r -a"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+#      when: inventory_hostname in groups['gpdb-mdw'] and _cmds_gpconfig_file.changed == true
+      when: inventory_hostname in groups['gpdb-mdw']
+
+    - name: "Create 'cmds_etc' Script"
+      template:
+        src: "../templates/cmds_etc.sh.j2"
+        dest: "{{ cmds_etc_file }}"
+        owner: "{{ greenplum_admin_user }}"
+        group: "{{ greenplum_admin_user }}"
+        mode: '0755'
+        backup: yes
+      register: _cmds_etc_file
+      when: inventory_hostname in groups['gpdb-mdw'] or inventory_hostname in groups['gpdb-smdw']
+
+    - name: "Run {{ cmds_etc_file }})"
+      shell: "{{ cmds_etc_file }}"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+#      when: inventory_hostname in groups['gpdb-mdw'] and _cmds_etc_file.changed == true
+      when: inventory_hostname in groups['gpdb-mdw']
+
+    - name: "Restart GPDB-Fast"
+      shell: "gpstop -M fast -r -a"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+#      when: inventory_hostname in groups['gpdb-mdw'] and _cmds_etc_file.changed == true
+      when: inventory_hostname in groups['gpdb-mdw']
+
+    - name: "Copy & unarchive utilities source file to {{ gpdb_src_path }}"
+      unarchive:
+        src: "{{ lookup('env','PWD') }}/files/utilities.tar.gz"
+        dest: "{{ gputil_path }}"
+        owner: "{{ greenplum_admin_user }}"
+        group: "{{ greenplum_admin_user }}"
+      when: inventory_hostname in groups['gpdb-mdw']
+
+    - name: "Create 'cluster_info.sh' file"
+      template:
+        src: "../templates/cluster_info.sh.j2"
+        dest: "{{ gputil_path }}/utilities/setup/cluster_info.sh"
+        owner: "{{ greenplum_admin_user }}"
+        group: "{{ greenplum_admin_user }}"
+        mode: '0755'
+        backup: yes
+      when: inventory_hostname in groups['gpdb-mdw']
+
+    - name: "Copy hostname file to utilities source file"
+      copy:
+        src: "{{ gpadmin_user_home }}/gpconfigs/{{ item.src }}"
+        dest: "{{ gputil_path }}/utilities/setup/{{ item.dest }}"
+        owner: "{{ greenplum_admin_user }}"
+        group: "{{ greenplum_admin_user }}"
+        mode: '0755'
+      with_items:
+        - { src: 'host_all', dest: 'hostfile_all' }
+        - { src: 'hostname_all', dest: 'hostfile_gpdb' }
+        - { src: 'host_seg', dest: 'hostfile_seg' }
+      when: inventory_hostname in groups['gpdb-mdw']
+
+    - name: "Run utilities/setup.sh file"
+      shell: "{{ gputil_path }}/utilities/setup/setup.sh"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+      when: inventory_hostname in groups['gpdb-mdw']
+
+    - name: "Create a directory if it does not exist"
+      file:
+        path: "{{ gputil_path }}/utilities/dashboard/log"
+        state: directory
+        mode: '0755'
+        owner: "{{ greenplum_admin_user }}"
+        group: "{{ greenplum_admin_user }}"
+
+    - name: "Check Exist of madlib package file"
+      stat:
+        path: "{{ gpdb_src_path }}/{{ madlib_file_name }}"
+      register: madlib_file_stat
+      when: inventory_hostname in groups['gpdb-mdw']
+
+    - name: "Unarchive madlib package file"
+      unarchive:
+        src: "{{ gpdb_src_path }}/{{ madlib_file_name }}"
+        dest: "{{ gpdb_src_path }}"
+        owner: "{{ greenplum_admin_user }}"
+        group: "{{ greenplum_admin_user }}"
+        remote_src: yes
+      when: inventory_hostname in groups['gpdb-mdw'] and madlib_file_stat.stat.exists == true
+
+    - name: "Install madlib package file"
+      shell: "gppkg -i {{ gpdb_src_path }}/{{ madlib_file_archive_name }}/{{ madlib_file_archive_name }}.gppkg"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+      when: inventory_hostname in groups['gpdb-mdw'] and madlib_file_stat.stat.exists == true
+
+    - name: "Adding MADlib Functions to a Database"
+      shell: "{{ gpdb_home }}/madlib/bin/madpack -s madlib -p greenplum -c gpadmin@mdw:5432/postgres install"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+      when: inventory_hostname in groups['gpdb-mdw'] and madlib_file_stat.stat.exists == true
+
+    - name: "Delete madlib binary directory"
+      file:
+        path: "{{ gpdb_src_path }}/{{ madlib_file_archive_name }}"
+        state: absent
+      when: inventory_hostname in groups['gpdb-mdw'] and madlib_file_stat.stat.exists == true

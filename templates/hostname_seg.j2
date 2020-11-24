@@ -1,0 +1,3 @@
+{% for host in groups['gpdb-sdw'] %}
+{{ hostvars[host].bd_hostname }}
+{% endfor %}

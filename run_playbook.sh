@@ -704,11 +704,11 @@ if [ "$gpdb_err" == "-1" ];then
  echo "Master Standby Service : $gpfo_st"
  if [ $(echo "$gpdb_st" | grep -i active | wc -l) -eq 1 ];then
   check_vip
-  echo " > VIP-IP                  : $vip_ip"
+  echo " > VIP-IP        : $vip_ip"
   echo " > VIP-NETMASK   : $vip_net"
   echo " > VIP-GATEWAY   : $vip_gate"
-  echo " > VIP-SOURCE     : $vip_ori"
-  echo " > VIP-TARGET      : $vip_int"
+  echo " > VIP-SOURCE    : $vip_ori"
+  echo " > VIP-TARGET    : $vip_int"
  fi
  echo ""
  echo "- GPDB gpconfig parameter -"
@@ -856,9 +856,10 @@ rm -f ./yml/upgrade_files.yml
 rm -f $uninstall._st
 }
 
-### main menu start
+### MAIN MENU
 sm=$(echo "$1" | tr '[A-Z' '[a-z]')
 if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
+ ### TEXT UI
  while [ "$ms" != "x" ]
  do
   rpm -qa > /tmp/rpm_check.txt
@@ -874,11 +875,11 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
   echo ""
   msg_line " [ Ansible GPDB Automation ] " "-"
   echo ""
-  echo " 1. Default GPDB Setup"
-  echo " 2. Custom GPDB Setup"
-  echo " 3. Patch(Minor Upgrade)"
-  echo " 4. Check OS/GPDB Status"
-  echo " 5. Uinstall"
+  echo " 1. Default GPDB Setup     // Full Packages will be install automatically"
+  echo " 2. Custom GPDB Setup      // All Packages cab be individually installed"
+  echo " 3. Patch(Minor Upgrade)   // GPDB(All Packages), GPCC"
+  echo " 4. Check OS/GPDB Status   // Current OS/GPDB Parameter Status"
+  echo " 5. Uinstall               // Uninstall GPDB, GPCC"
   echo ""
   echo " > 'X|x' to Exit"
   line -
@@ -888,20 +889,20 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
   1)
   echo ""
   echo "Please fill in the 6 items below."
-  echo -e -n "1) GPDB Version(\033[1;31;49mex> 6.7.1\033[0m): "
+  echo -e -n "1) GPDB Version(\033[1;31;49mex> 6.11.1\033[0m): "
   read ra
   echo -e -n "2) Instance count(\033[1;31;49mex> 4\033[0m): "
   read rb
   echo -e -n "3)Expand group unit\033[1;31;49mex> 4\033[0m): "
   read rc  
-  echo -e -n "4)GPCC Display name(\033[1;31;49mex>test\033[0m): "
+  echo -e -n "4)GPCC Display name(\033[1;31;49mex>gpcc\033[0m): "
   read rd
   echo -e -n "5)GPDB Mirror Config(\033[1;31;49mex> y\033[0m): "
   read re
   echo "6) Segment Data Type"
-  echo "     [1] /data"
-  echo "     [2] /data1 | /data2"
-  echo -e -n "     Select(\033[1;31;49mex> 1\033[0m): "
+  echo "   [1] /data"
+  echo "   [2] /data1 | /data2"
+  echo -e -n "   Select(\033[1;31;49mex> 1\033[0m): "
   read rf
   va=$($check_ver $ra)
   vb=$(check_num $rb)
@@ -909,119 +910,129 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
   vd=$rd
   ve=$(check_alpha $re)
   vf=$(check_num $rf)
-  if [ "$va" == "" ] || [ "$vb" == "" ] || [ "$vc" == "" ] || [ "$ve" == "" ] || [ "$ve" == "" ]  || [ "$vf" == "" ] || [ $vf -gt 2 ];then
-   echo ""
-   echo -e "\033[1;31;49mAborted by system. Please check variable!\033[0m"
-   echo "Return to main menu."
-   read qq
-  elif [ $seg_count -ge $vc ];then
-   vaa=$(echo $va | sed 's/\./-/g')
-   check_file $vaa
-   let ch1_seg_count=$seg_count%$vc
-   let ch2_seg_ocunt=$seg_count/$vc
-   if [ $ch_standby -eq 1 ];then
-    sed -i "/^enable_standby_master:/ c\enable_standby_master: 1" $vars_common_path
+  vaa=$(echo $va | sed 's/\./-/g')
+  count_file
+  check_file $vaa
+  vec=1
+  if [ "$ve" == "N" ] || [ "$ve" == "n" ];then
+   if [ $seg_count -ne $vc ];then
+    vec=0
    fi
-   sed -i "/^number_of_seg_instances_per_node:/ c\number_of_seg_instances_per_node: $vb" $vars_common_path
-   let segment_group=($seg_count-$vc)/$vc
-   sed -i "/^segment_group:/ c\segment_group: $segment_group" $vars_common_path
-   sed -i "/^segment_group_count:/ c\segment_group_count: $vc" $vars_common_path
-   sed -i "/^  display_name:/ c\  display_name: \"$vd\"" $vars_common_path
-   line -
-   msg_show " < 1. Default GPDB Setup > "
-   echo ""
-   echo "- Segment Node Count           : $seg_count"
-   if [ $ch_standby -eq 1 ];then
-    echo "- GPDB Standby Master        : True"
-   fi
-   if [ "$ve" == "Y" ] || [ "$ve" == "y" ];then
-    vee="True"
-    sed -i "/^enable_mirror:/ c\enable_mirror: 2" $vars_common_path
-   else
-    vee="False"
-    sed -i "/^enable_mirror:/ c\enable_mirror: 1" $vars_common_path
-   fi
-   echo "- GPDB Mirror Config         : $vee"
-   if [ $ch1_seg_count -eq 0 ] && [ $ch2_seg_count -gt 1 ];then
-    echo "- GPDB Expand group unit     : $vc"
-   fi
-   if [ $vf -eq 1 ];then
-    echo "- GPDB Segment Data Path  : /data"
-   elif [ $vf -eq 2 ];then
-    echo "- GPDB Segment Data Path  : /data1 | /data2"
-   fi
-   sed -i "/^sel_data_path:/ c\sel_data_path: $vf" $vars_common_path
-   echo ""
-   echo "- GPDB                  : $gpdb_default_version / Instance : $vb"
-   echo "- GPCC                  : $gpcc_default_version / Display name : $vd"
-   echo "- madlib                 : $madlib_default_version"
-   echo "- PL/Java               : $pljava_default_version"
-   echo "- PL/R                    : $plr_default_version"
-   echo "- Python Data Science   : $DataSciencePython_default_version"
-   echo "- R Data Science    : $DataScienceR_default_version"
-#   echo  "- GPCOPY          : $gpcopy_default_version"
-   echo "- PXF                  : $Include in GPDB"
-   echo ""
-   echo "- VIP Environment     > IP                : $vip_ip"
-   echo "                                     > NETMASK : $vip_net"
-   echo "                                     > GATEWAY : $vip_gate"
-   echo "                                     > SOURCE : $vip_ori"
-   echo "                                     > TARGET : $vip_int"
-   line -
-   echo -n -e "\nIs it OK?(Yy/\033[0;31;49mNn\033[0m) "
-   read aa
-   if [ "$aa" == "Y" ] || [ "$aa" == "y" ];then
-    echo "0_setup-base-setting.yml" > default_items
-    echo "1_setup-gpdb.yml" >> default_items
-    if [ "$ve" == "Y" ] || [ "$ve" == "y" ];then
-     echo "1_mirror-gpdb.yml" >> default_items
-    fi
-    if [ $ch1_seg_count -eq 0 ] && [ $ch2_seg_count -gt 1 ];then
-     echo "1_expand-gpdb.yml" >> default_items
-    fi
-    if [ $ch_standby -eq 1 ];then
-     echo "1_standby-gpdb.yml" >> default_items
-    fi
-    echo "2_setup-gpcc.yml" >> default_items
-    echo "3_setup-gpfailover.yml" >> default_items
-    echo "4_setup-gppkg-pljava.yml" >> default_items
-    echo "5_setup-gppkg-plr.yml" >> default_items
-    echo "6_setup-gppkg-DataSciencePython.yml" >> default_items
-    echo "7_setup-gppkg-DataScienceR.yml" >> default_items
-#    echo "8_setup-gppkg-gpcopy.yml" >> default_items
-    echo "9_setup-gppkg-pxf.yml" >> default_items
-    default_to_sel
-    create version
-    cat default_items > /tmp/default_items-$now
-    cat $version_files_yml > /tmp/version_files-$now
-    for di in $(cat default_items)
-    do
-     ### Insert Playbook Name to Log File.
-     date >> ${LOG_FILE}.{LOG_TIME}
-     echo "============== Playbook Name: $di ==============" | tee -a >> ${LOG_FILE}.{LOG_TIME}
-     ### Setup GPDB on Cluster
-     time ansible-playbook -i inventory.lst ./yml/$di  --extra-vars "ansible_user=root ansible_password={{ bd_ssg_root_pw }}" | tee -a ${LOG_FILE}.{LOG_TIME}
-      date >> ${LOG_FILE}.{LOG_TIME}
-    done
+  fi
+  if [ $(check_exist $vaa) == "ture" ];then
+   if [ "$va" == "" ] || [ "$vb" == "" ] || [ "$vc" == "" ] || [ "$ve" == "" ] || [ $vec -eq 0 ] || [ "$vf" == "" ] || [ $vf -gt 2 ];then
     echo ""
-    echo  -e "\033[1;31;49mDefault GPDB Setup Complete!\033[0m"
-    echo -n "Press any key. Return to the main menu"
+    echo -e "\033[1;31;49mAborted by system. Please check variable!\033[0m"
+    echo "Return to main menu."
     read qq
+   elif [ $seg_count -ge $vc ];then
+    let ch1_seg_count=$seg_count%$vc
+    let ch2_seg_ocunt=$seg_count/$vc
+    sed -i "/^number_of_seg_instances_per_node:/ c\number_of_seg_instances_per_node: $vb" $vars_common_path
+    let segment_group=($seg_count-$vc)/$vc
+    sed -i "/^segment_group:/ c\segment_group: $segment_group" $vars_common_path
+    sed -i "/^segment_group_count:/ c\segment_group_count: $vc" $vars_common_path
+    sed -i "/^  display_name:/ c\  display_name: \"$vd\"" $vars_common_path
+    line -
+    msg_show " < 1. Default GPDB Setup > "
+    echo ""
+    echo "- Segment Node Count      : $seg_count"
+    if [ $ch_standby -eq 1 ];then
+     echo "- GPDB Standby Master     : True"
+     sed -i "/^enable_standby_master:/ c\enable_standby_master: 1" $vars_common_path
+    fi
+    if [ "$ve" == "Y" ] || [ "$ve" == "y" ];then
+     vee="True"
+     sed -i "/^enable_mirror:/ c\enable_mirror: 2" $vars_common_path
+    else
+     vee="False"
+     sed -i "/^enable_mirror:/ c\enable_mirror: 1" $vars_common_path
+    fi
+    echo "- GPDB Mirror Config      : $vee"
+    if [ $ch1_seg_count -eq 0 ] && [ $ch2_seg_count -gt 1 ];then
+     echo "- GPDB Expand group unit  : $vc"
+    fi
+    if [ $vf -eq 1 ];then
+     echo "- GPDB Segment Data Path  : /data"
+    elif [ $vf -eq 2 ];then
+     echo "- GPDB Segment Data Path  : /data1 | /data2"
+    fi
+    sed -i "/^sel_data_path:/ c\sel_data_path: $vf" $vars_common_path
+    echo ""
+    echo "- GPDB                    : $gpdb_default_version / Instance : $vb"
+    echo "- GPCC                    : $gpcc_default_version / Display name : $vd"
+    echo "- madlib                  : $madlib_default_version"
+    echo "- PL/Java                 : $pljava_default_version"
+    echo "- PL/R                    : $plr_default_version"
+    echo "- Python Data Science     : $DataSciencePython_default_version"
+    echo "- R Data Science          : $DataScienceR_default_version"
+#    echo  "- GPCOPY                 : $gpcopy_default_version"
+    echo "- PXF                     : $Include in GPDB"
+    echo ""
+    echo "- VIP Environment       > IP        : $vip_ip"
+    echo "                        > NETMASK   : $vip_net"
+    echo "                        > GATEWAY   : $vip_gate"
+    echo "                        > SOURCE    : $vip_ori"
+    echo "                        > TARGET    : $vip_int"
+    line -
+    echo -n -e "\nIs it OK?(Yy/\033[0;31;49mNn\033[0m) "
+    read aa
+    if [ "$aa" == "Y" ] || [ "$aa" == "y" ];then
+     echo "0_setup-base-setting.yml" > default_items
+     echo "1_setup-gpdb.yml" >> default_items
+     if [ "$ve" == "Y" ] || [ "$ve" == "y" ];then
+      echo "1_mirror-gpdb.yml" >> default_items
+     fi
+     if [ $ch1_seg_count -eq 0 ] && [ $ch2_seg_count -gt 1 ];then
+      echo "1_expand-gpdb.yml" >> default_items
+     fi
+     if [ $ch_standby -eq 1 ];then
+      echo "1_standby-gpdb.yml" >> default_items
+     fi
+     echo "2_setup-gpcc.yml" >> default_items
+     echo "3_setup-gpfailover.yml" >> default_items
+     echo "4_setup-gppkg-pljava.yml" >> default_items
+     echo "5_setup-gppkg-plr.yml" >> default_items
+     echo "6_setup-gppkg-DataSciencePython.yml" >> default_items
+     echo "7_setup-gppkg-DataScienceR.yml" >> default_items
+#     echo "8_setup-gppkg-gpcopy.yml" >> default_items
+     echo "9_setup-gppkg-pxf.yml" >> default_items
+     default_to_sel
+     create version
+     cat default_items > /tmp/default_items-$now
+     cat $version_files_yml > /tmp/version_files-$now
+     for di in $(cat default_items)
+     do
+      ### Insert Playbook Name to Log File.
+      date >> ${LOG_FILE}.{LOG_TIME}
+      echo "============== Playbook Name: $di ==============" | tee -a >> ${LOG_FILE}.{LOG_TIME}
+      ### Setup GPDB on Cluster
+      time ansible-playbook -i inventory.lst ./yml/$di  --extra-vars "ansible_user=root ansible_password={{ bd_ssg_root_pw }}" | tee -a ${LOG_FILE}.{LOG_TIME}
+      date >> ${LOG_FILE}.{LOG_TIME}
+     done
+     echo ""
+     echo  -e "\033[1;31;49mDefault GPDB Setup Complete!\033[0m"
+     echo -n "Press any key. Return to the main menu"
+     read qq
+    else
+     echo  -n "Return to the main menu"
+     read qq
+    fi
    else
-    echo  -n "Return to the main menu"
+    echo ""
+    echo "Aborted by system. Check variable again!"
+    echo -n "Press any key. Return to the main menu"
     read qq
    fi
   else
-   echo ""
-   echo "Aborted by system. Check variable again!"
-   echo -n "Press any key. Return to the main menu"
-   read qq
-  fi
+   echo -e "\033[1;31;49mAborted by system. Please check \"1st value(GPDB Version)\" or Binary file existence!\033[0m"
+   echo "Exit ansible GPDB Setup."
+  fi 
   del_tmp_file
   ;;
   2)
   init_sel
-  check_file
+  count_file
   while [ "$bms" != "m" ]
   do
    clear
@@ -1030,52 +1041,53 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
    msg_show " < 2. Custom GPDB Setup > "
    echo ""
    echo -e " [\033[1;31;49m$b0\033[0m] 0) Setting OS/GPDB base"
-   echo  -e " [\033[1;31;49m$b1\033[0m] 1) Installing GPDB and GPDB Parameter"
+   echo -e " [\033[1;31;49m$b1\033[0m] 1) Installing GPDB and GPDB Parameter"
    if [ "$b1" == "v" ];then
-    echo -e "     >> \033[1;32;49mVersion: $sel_gpdb_ver\033[0m | \033[1;33;49mSegment Count: $seg_count\033[0m | \033[1;37;49mInstance: $sel_seg_instance\033[0m"
-    if [ "$ssel" = "Y" ] || [ "$ssel" == "y" ];then
-     echo -e "     >> \033[1;34;49mStandby Master: Enable\033[0m"
+    echo -e "        >> \033[1;32;49mVersion: $sel_gpdb_ver\033[0m | \033[1;33;49mSegment Count: $seg_count\033[0m | \033[1;37;49mInstance: $sel_seg_instance\033[0m"
+    if [ "$ssel" == "Y" ] || [ "$ssel" == "y" ];then
+     echo -e "        >> \033[1;34;49mStandby Master: Enable\033[0m"
     fi
     if [ "$msel" == "Y" ] || [ "$mse" == "y" ];then
-     echo -e "     >> \033[1;36;49mMirror: Enable\033[0m"
+     echo -e "        >> \033[1;36;49mMirror: Enable\033[0m"
     fi
     if [ "$esel" == "Y" ] || [ "$esel" == "y" ];then
-     echo -e "     >> \033[1;35;49mExpand Group Unit: $sel_seg_group\033[0m"
+     echo -e "        >> \033[1;35;49mExpand Group Unit: $sel_seg_group\033[0m"
     fi
     if [ $dsel -eq 1 ];then
-     echo -e "      >> \033[1;33;49mSegment Data Type: /data\033[0m"
+     echo -e "        >> \033[1;33;49mSegment Data Type: /data\033[0m"
     elif [ $dsel -eq 2 ];then
-     echo -e "      >> \033[1;33;49mSegment Data Type: /data1 | /data2\033[0m"
+     echo -e "        >> \033[1;33;49mSegment Data Type: /data1 | /data2\033[0m"
     fi
+    echo -e "        >> \033[1;37;49mmadlib: $sel_madlib_ver\033[0m   \033[1;31;49m### Installation of this package is forced\033[0m""
    fi
    echo -e " [\033[1;31;49m$b2\033[0m] 2) Installing GPCC"
    if [ "$b2" == "v" ];then
-    echo -e "     >> \033[1;32;49mVersion: $sel_gpcc_ver\033[0m | \033[1;36;49mDisplay Name: $sel_gpcc_display_name\033[0m"
+    echo -e "        >> \033[1;32;49mVersion: $sel_gpcc_ver\033[0m | \033[1;36;49mDisplay Name: $sel_gpcc_display_name\033[0m"
    fi
    echo  -e " [\033[1;31;49m$b3\033[0m] 3) Setting GPfailover"
    if [ "$b3" == "v" ];then
-    echo -e "     >>  VIP - IP: \033[1;32;49m$vip_ip\033[0m | NETMASK: \033[1;32;49m$vip_net\033[0m | GATEWAY: \033[1;32;49m$vip_gate\033[0m"
-    echo -e "     >> INTERFACE - SOURCE: \033[1;32;49m$vip_ori\033[0m | TARGET: \033[1;32;49m$vip_int\033[0m"
+    echo -e "        >>  VIP - IP: \033[1;32;49m$vip_ip\033[0m | NETMASK: \033[1;32;49m$vip_net\033[0m | GATEWAY: \033[1;32;49m$vip_gate\033[0m"
+    echo -e "        >> INTERFACE - SOURCE: \033[1;32;49m$vip_ori\033[0m | TARGET: \033[1;32;49m$vip_int\033[0m"
    fi
    echo  -e " [\033[1;31;49m$b4\033[0m] 4) Package > PL/JAVA"
    if [ "$b4" == "v" ];then
-    echo -e "     >>  \033[1;32;49m$sel_pljava_ver\033[0m"
+    echo -e "        >>  \033[1;32;49m$sel_pljava_ver\033[0m"
    fi
    echo  -e " [\033[1;31;49m$b5\033[0m] 5) Package > PL/R"
    if [ "$b5" == "v" ];then
-    echo -e "     >>  \033[1;32;49m$sel_plr_ver\033[0m"
+    echo -e "        >>  \033[1;32;49m$sel_plr_ver\033[0m"
    fi
    echo  -e " [\033[1;31;49m$b6\033[0m] 6) Package > Python Data Science"
    if [ "$b6" == "v" ];then
-    echo -e "     >>  \033[1;32;49m$sel_DataSciencePython_ver\033[0m"
+    echo -e "        >>  \033[1;32;49m$sel_DataSciencePython_ver\033[0m"
    fi
    echo  -e " [\033[1;31;49m$b7\033[0m] 7) Package > R Data Science"
    if [ "$b7" == "v" ];then
-    echo -e "     >>  \033[1;32;49m$sel_DataScienceR_ver\033[0m"
+    echo -e "        >>  \033[1;32;49m$sel_DataScienceR_ver\033[0m"
    fi
    echo  -e " [\033[1;31;49m$b8\033[0m] 8) Package > GPCOPY"
    if [ "$b8" == "v" ];then
-    echo -e "     >>  \033[1;32;49m$sel_gpcopy_ver\033[0m"
+    echo -e "        >>  \033[1;32;49m$sel_gpcopy_ver\033[0m"
    fi 
    echo  -e " [\033[1;31;49m$b9\033[0m] 9) Package > PXF"
    echo ""
@@ -1097,7 +1109,6 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
    1)
    if [ "$b1" == "v" ];then
     b1=" "
-    sel_gpdb_file=$gpdb_default_file
     sel_seg_instance=4
     sed -i "/^number_of_seg_instances_per_node:/ c\number_of_seg_instances_per_node: $sel_seg_instance" $vars_common_path
     sel_seg_group=4
@@ -1107,22 +1118,23 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
     sed -i "/^enable_mirror:/ c\enable_mirror: 1" $vars_common_path
    elif [ "$b1" != "v" ];then
     if [ $gpdb_count -gt 1 ];then
-    echo ""
-    echo "Found more than one installation GPDB file"
-    no=1
-    cat /dev/null > /tmp/gpdb_file_list
-    for var in $gpdb_file_name
+     echo ""
+     echo "Found more than one installation GPDB file"
+     no=1
+     cat /dev/null > /tmp/gpdb_file_list
+     for var in $gpdb_file_name
      do
       echo -n "$no) "
       echo " $var" | awk -F'-' '{print$3}'
       echo "$no) $var" >> /tmp/gpdb_file_list
       no=$((no+1))
      done
-     echo ""
-     echo -n -e "Select number\033[0;34;49m<Default Version - $gpdb_default_version>\033[0m: "
+     de_gpdb_file=$(cat /tmp/gpdb_file_list | grep "^1" | awk -F' ' '{print$2}')
+     de_gpdb_ver=$(echo "$de_gpdb_file" | awk -F'-' '{print$3}')
+     echo -n -e "Select number\033[0;34;49m<Default Version - $de_gpdb_ver>\033[0m: "
      read ba
      if [ -z "$ba" ];then
-      sel_gpdb_file=$gpdb_default_file
+      sel_gpdb_file=$de_gpdb_file
      elif [ -n "${ba//[0-9]}" ] || [ $ba -ge $no ] || [ $ba -lt 1 ];then
       echo "Invalid number"
       sel_gpdb_file="Invalid number"
@@ -1130,9 +1142,11 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
      else
       sel_gpdb_file=$(cat /tmp/gpdb_file_list | grep "^$ba" | awk -F' ' '{print$2}')
      fi
+    else
+     sel_gpdb_file=$gpdb_file_name
     fi
     if [ "$sel_godb_file" != "Invalid number" ];then
-     #Input GPDB instance count
+     ### Input GPDB instance count
      echo -n -e "\nInput number of segment instances\033[0;34;49m<Default - 4>\033[0m: "
      read seg_instance_num
      if [ "$seg_instance_num" == "" ];then
@@ -1155,9 +1169,9 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
       echo -e -n "Configure \"\033[1;31;49mGPDB Expand\033[0m\"?(Yy/\033[0;31;49mNn\033[0m) "
       read esel
       if [ "$esel" == "Y" ] || [ "$esel" == "y" ];then
-        echo -e -n "Input \"\033[1;31;49mGPDB Expand group unit\033[0m\"\033[0;34;49m<Default - 4>\033[0m: "
+       echo -e -n "Input \"\033[1;31;49mGPDB Expand group unit\033[0m\"\033[0;34;49m<Default - 4>\033[0m: "
        read seg_group_num
-       if [ "$seg_group_num" == "" ];then
+       if [ "$seg_group_num" == "" ] || [ "$(check_num $seg_group_num)" == "" ];then
         sel_seg_group=4
        else
         sel_seg_group=$seg_group_num
@@ -1177,7 +1191,7 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
       echo -e -n "\"\033[1;31;49mGPDB Standby Master\033[0m\" configuration progress?(Yy/\033[0;31;49mNn\033[0m) "
       read ssel
       if [ "$ssel" == "Y" ] || [ "$ssel" == "y" ];then
-        sed -i "/^enable_standby_master:/ c\enable_standby_master: 1" $vars_common_path
+       sed -i "/^enable_standby_master:/ c\enable_standby_master: 1" $vars_common_path
       fi
       echo ""
      fi
@@ -1190,15 +1204,40 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
       dsel=1
      fi
      sed -i "/^sel_data_path:/ c\sel_data_path: $dsel" $vars_common_path    
+     if [ $madlib_count -gt 1 ];then
+      echo ""
+      echo "Found more than one installation madlib file."
+      no=1
+      cat /dev/null > /tmp/madlib_file_list
+      for var in $madlib_file_name
+      do
+       echo -n "$no) "
+       echo " $var" | awk -F'-' '{print$2}'
+       echo "$no) $var" >> /tmp/madlib_file_list
+       no=$((no+1))
+      done
+      de_madlib_file=$(cat /tmp/madlib_file_list | grep "^1" | awk -F' ' '{print$2}')
+      de_madlib_ver=$(echo "$de_madlib_file" | awk -F'-' '{print$2}')
+      echo ""
+      echo -n -e "Select number\033[0;34;49m<Default Version - $de_madlib_ver>\033[0m: "
+      read baa
+      if [ -z "$baa" ] || [ -n "${baa//[0-9]}" ] || [ $baa -ge $no ] || [ $baa -lt 1 ];then
+       sel_madlib_file=$de_madlib_file
+      else
+       sel_madlib_file=$(cat /tmp/madlib_file_list | grep "$^baa" | awk -F' ' '{print$2}')
+      fi
+     else
+      sel_madlib_file=$madlib_file_name
+     fi
      b1="v"
     fi
    fi
    sel_gpdb_ver=$(echo "$sel_gpdb_file" | awk -F'-' '{print$3}')
+   sel_madlib_ver=$(echo "$sel_madlib_file" | awk -F'-' '{print$2}')
    ;;
    2)
    if [ "$b2" == "v" ];then
     b2=" "
-    sel_gpcc_file=$gpcc_default_file
     sel_gpcc_display_name="gpcc"
     sed -i "/^  display_name:/ c\  display_name: \"$sel_gpcc_display_name\"" $vars_common_path
    elif [ "$b2" != "v" ];then
@@ -1214,11 +1253,13 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
       echo "$no) $var" >> /tmp/gpcc_file_list
       no=$((no+1))
      done
+     de_gpcc_file=$(cat /tmp/gpcc_file_list | grep "^1" | awk -F' ' '{print$2}')
+     de_gpcc_ver=$(echo "$de_gpcc_file" | awk -F'-' '{print$4}')
      echo ""
-     echo -n -e "Select number\033[0;34;49m<Default Version - $gpcc_default_version>\033[0m: "
+     echo -n -e "Select number\033[0;34;49m<Default Version - $de_gpcc_ver\033[0m: "
      read bb
      if [ -z "$bb" ];then
-      sel_gpcc_file=$gpcc_default_file
+      sel_gpcc_file=$de_gpcc_file
      elif [ -n "${bb//[0-9]}" ] || [ $bb -ge $no ] || [ $bb -lt 1 ];then
       echo "Invalid number"
       sel_gpcc_file="Invalid number"
@@ -1226,9 +1267,11 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
      else
       sel_gpcc_file=$(cat /tmp/gpcc_file_list | grep "^$bb" | awk -F' ' '{print$2}')
      fi
+    else
+     sel_gpcc_file=$gpcc_file_name
     fi
     if [ "$sel_gpcc_file" != "Invalid number" ];then
-     #Input GPDB display name
+     ### Input GPDB display name
      echo -n -e "Input GPCC Display name\033[0;34;49m<Default - gpcc>\033[0m: "
      read gpcc_display_name
      if [ "$gpcc_display_name" == "" ];then
@@ -1237,7 +1280,7 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
       sel_gpcc_display_name=$gpcc_display_name
      fi
      sed -i "/^  display_name:/ c\  display_name: \"$sel_gpcc_display_name\"" $vars_common_path
-     echo -e "\nChanged GPCC display name: \033[1;31;49m$sel_gpcc_display_name\033[0m"
+#     echo -e "\nChanged GPCC display name: \033[1;31;49m$sel_gpcc_display_name\033[0m"
      sleep 0.5
      b2="v"
     fi
@@ -1255,7 +1298,7 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
    4)
    if [ "$b4" == "v" ];then
     b4=" "
-    sel_pljava_file=$pljava_default_file
+#    sel_pljava_file=$pljava_default_file
    elif [ "$b4" != "v" ];then
     if [ $pljava_count -gt 1 ];then
      echo ""
@@ -1269,11 +1312,13 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
       echo "$no) $var" >> /tmp/pljava_file_list
       no=$((no+1))
      done
+     de_pljava_file=$(cat /tmp/pljava_file_list | grep "^1" | awk -F' ' '{print$2}')
+     de_pljava_ver=$(echo "$de_pljava_file" | awk -F'-' '{print$2}')
      echo ""
-     echo -n -e "Select number\033[0;34;49m<Default Version - $pljava_default_version>\033[0m: "
+     echo -n -e "Select number\033[0;34;49m<Default Version - $de_pljava_ver\033[0m: "
      read bc
      if [ -z "$bc" ];then
-      sel_pljava_file=$pljava_default_file
+      sel_pljava_file=$de_pljava_file
      elif [ -n "${bc//[0-9]}" ] || [$bc -ge $no ] || [ $bc -lt 1 ];then
       echo "Invalid number"
       sel_pljava_file="Invalid number"
@@ -1281,6 +1326,8 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
      else
       sel_pljava_file=$(cat /tmp/pljava_file_list | grep "^$bc" | awk -F' ' '{print$2}')
      fi
+    else
+     sel_pljava_file=$pljava_file_name
     fi
     if [ "$sel_pljava_file" != "Invalid number" ];then
      b4="v"
@@ -1291,7 +1338,7 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
    5)
    if [ "$b5" == "v" ];then
     b5=" "
-    sel_plr_file=$plr_default_file
+#    sel_plr_file=$plr_default_file
    elif [ "$b5" != "v" ];then
     if [ $plr_count -gt 1 ];then
      echo ""
@@ -1305,8 +1352,10 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
       echo "$no) $var" >> /tmp/plr_file_list
       no=$((no+1))
      done
+     de_plr_file=$(cat /tmp/plr_file_list | grep "^1" | awk -F'-' '{print$2}')
+     de_plr_ver=$(echo "$de_plr_file" | awk -F'-' '{print$2}')
      echo ""
-     echo -n -e "Select number\033[0;34;49m<Default Version - $plr_default_version>\033[0m: "
+     echo -n -e "Select number\033[0;34;49m<Default Version - $de_plr_ver\033[0m: "
      read bd
      if [ -z "$bd" ];then
       sel_plr_file=$plr_default_file
@@ -1317,6 +1366,8 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
      else
       sel_plr_file=$(cat /tmp/plr_file_list | grep "^$bd" | awk -F' ' '{print$2}')
      fi
+    else
+      sel_plr_file=$plr_file_name
     fi
     if [ "$sel_plr_file" != "Invalid number" ];then
      b5="v"
@@ -1327,7 +1378,7 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
    6)
    if [ "$b6" == "v" ];then
     b6=" "
-    sel_DataSciencePython_file=$DataSciencePython_default_file
+#    sel_DataSciencePython_file=$DataSciencePython_default_file
    elif [ "$b6" != "v" ];then
     if [ $DataSciencePython_count -gt 1 ];then
      echo ""
@@ -1341,11 +1392,13 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
       echo "$no) $var" >> /tmp/DataSciencePython_file_list
       no=$((no+1))
      done
+     de_DataSciencePython_file=$(cat /tmp/DataSciencePython_file_list | grep "^1" | awk -F' ' '{print$2}')
+     de_DataSciencePython_ver=$(echo "$de_DataSciencePython_file" | awk -F'-' '{print$2}')
      echo ""
-     echo -n -e "Select number\033[0;34;49m<Default Version - $DataSciencePython_default_version>\033[0m: "
+     echo -n -e "Select number\033[0;34;49m<Default Version - $de_DataSciencePython_ver\033[0m: "
      read be
      if [ -z "$be" ];then
-      sel_DataSciencePython_file=$DataSciencePython_default_file
+      sel_DataSciencePython_file=$de_DataSciencePython_file
      elif [ -n "${be//[0-9]}" ] || [$be -ge $no ] || [ $be -lt 1 ];then
       echo "Invalid number"
       sel_DataSciencePython_file="Invalid number"
@@ -1353,6 +1406,8 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
      else
       sel_DataSciencePython_file=$(cat /tmp/DataSciencePython_file_list | grep "^$be" | awk -F' ' '{print$2}')
      fi
+    else
+     sel_DataSciencePython_file=$DataSciencePython_file_name
     fi
     if [ "$sel_DataSciencePython_file" != "Invalid number" ];then
      b6="v"
@@ -1363,7 +1418,7 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
    7)
    if [ "$b7" == "v" ];then
     b7=" "
-    sel_DataScienceR_file=$DataScienceR_default_file
+#    sel_DataScienceR_file=$DataScienceR_default_file
    elif [ "$b7" != "v" ];then
     if [ $DataScienceR_count -gt 1 ];then
      echo ""
@@ -1377,11 +1432,13 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
       echo "$no) $var" >> /tmp/DataScienceR_file_list
       no=$((no+1))
      done
+     de_DataScienceR_file=$(cat /tmp/DataScienceR_file_list | grep "^1" | awk -F' ' '{print$2}')
+     de_DataScienceR_ver=$(echo "$de_DataScienceR_file" | awk -F'-' '{print$2}')
      echo ""
-     echo -n -e "Select number\033[0;34;49m<Default Version - $DataScienceR_default_version>\033[0m: "
+     echo -n -e "Select number\033[0;34;49m<Default Version - $de_DataScienceR_ver>\033[0m: "
      read bf
      if [ -z "$bf" ];then
-      sel_DataScienceR_file=$DataScienceR_default_file
+      sel_DataScienceR_file=$de_DataScienceR_file
      elif [ -n "${bf//[0-9]}" ] || [$bf -ge $no ] || [ $bf -lt 1 ];then
       echo "Invalid number"
       sel_DataScienceR_file="Invalid number"
@@ -1389,6 +1446,8 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
      else
       sel_DataScienceR_file=$(cat /tmp/DataScienceR_file_list | grep "^$bf" | awk -F' ' '{print$2}')
      fi
+    else
+     sel_DataScienceR_file=$DataScienceR_file_name
     fi
     if [ "$sel_DataScienceR_file" != "Invalid number" ];then
      b7="v"
@@ -1399,7 +1458,7 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
    8)
    if [ "$b8" == "v" ];then
     b8=" "
-    sel_gpcopy_file=$gpcopy_default_file
+#    sel_gpcopy_file=$gpcopy_default_file
    elif [ "$b8" != "v" ];then
     if [ $gpcopy_count -gt 1 ];then
      echo ""
@@ -1413,11 +1472,13 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
       echo "$no) $var" >> /tmp/gpcopy_file_list
       no=$((no+1))
      done
+     de_gpcopy_file=$(cat /tmp/gpcopy_file_list | grep "^1" | awk -F' ' '{print$2}')
+     de_gpcopy_ver=$(echo "$de_gpcopy_file" | awk -F'-' '{print$2}' | awk -F'.tar' '{print$1}')
      echo ""
-     echo -n -e "Select number\033[0;34;49m<Default Version - $gpcopy_default_version>\033[0m: "
+     echo -n -e "Select number\033[0;34;49m<Default Version - $de_gpcopy_ver>\033[0m: "
      read bg
      if [ -z "$bg" ];then
-      sel_gpcopy_file=$gpcopy_default_file
+      sel_gpcopy_file=$de_gpcopy_file
      elif [ -n "${bg//[0-9]}" ] || [$bg -ge $no ] || [ $bg -lt 1 ];then
       echo "Invalid number"
       sel_gpcopy_file="Invalid number"
@@ -1425,6 +1486,8 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
      else
       sel_gpcopy_file=$(cat /tmp/gpcopy_file_list | grep "^$bg" | awk -F' ' '{print$2}')
      fi
+    else
+     sel_gpcopy_file=$gpcopy_file_name
     fi
     if [ "$sel_gpcopy_file" != "Invalid number" ];then
      b8="v"
@@ -1450,13 +1513,13 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
      if [ "$msel" == "Y" ] || [ "$msel" == "y" ];then
       echo "1_mirror-gpdb.yml" >> select_items
      fi
-     if [ $ch1_seg_count -eq 0 ] && [ $ch2_seg_count -gt 1 ];then
-      if [ "$esel" == "Y" ] || [ "$esel" == "y" ];then
-      echo "1_expand-gpdb.yml" >> select_items
+     if [ "$esel" == "Y" ] || [ "$esel" == "y" ];then
+      if [ $ch1_seg_count -eq 0 ] && [ $ch2_seg_count -gt 1 ];then
+       echo "1_expand-gpdb.yml" >> select_items
       fi
      fi
-     if [ $ch_standby -eq 1 ];then
-      if [ "$ssel" == "Y" ] || [ "$ssel" == "y" ];then
+     if [ "$ssel" == "Y" ] || [ "$ssel" == "y" ];then
+      if [ $ch_standby -eq 1 ];then
        echo "1_standby-gpdb.yml" >> select_items
       fi
      fi
@@ -1514,13 +1577,13 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
      if [ "$msel" == "Y" ] || [ "$msel" == "y" ];then
       echo "1_mirror-gpdb.yml" >> select_items
      fi
-     if [ $ch1_seg_count -eq 0 ] && [ $ch2_seg_count -gt 1 ];then
-      if [ "$esel" == "Y" ] || [ "$esel" == "y" ];then
-      echo "1_expand-gpdb.yml" >> select_items
+     if [ "$esel" == "Y" ] || [ "$esel" == "y" ];then
+      if [ $ch1_seg_count -eq 0 ] && [ $ch2_seg_count -gt 1 ];then
+       echo "1_expand-gpdb.yml" >> select_items
       fi
      fi
-     if [ $ch_standby -eq 1 ];then
-      if [ "$ssel" == "Y" ] || [ "$ssel" == "y" ];then
+     if [ "$ssel" == "Y" ] || [ "$ssel" == "y" ];then
+      if [ $ch_standby -eq 1 ];then
        echo "1_standby-gpdb.yml" >> select_items
       fi
      fi
@@ -1593,7 +1656,6 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
   ;;
   3)
   cat /dev/null > ./upgrade_items
-  chk_err=0
   while [ "$cms" != "m" ]
   do
    get_gpdb_patch_status

@@ -1,0 +1,264 @@
+---
+- hosts:
+    - all
+  gather_facts: false
+  vars_files:
+    - "vars-common.yml"
+    - "upgrade_files.yml"
+  vars:
+    - greenplum_admin_user: "gpadmin"
+  tasks:
+    - name: "Test GPDB Service stop"
+      shell : "gpstop -af"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+      any_errors_fatal: true
+      when: inventory_hostname in groups['gpdb-mdw']
+
+    - name: "Test GPDB Service start"
+      shell : "gpstart -a"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+      any_errors_fatal: true
+      when: inventory_hostname in groups['gpdb-mdw']
+
+    - name: "Check GPCC status"
+      shell: "gpcc status"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+      ignore_errors: yes
+      register: gpcc_status
+      when: inventory_hostname in groups['gpdb-mdw']
+
+    - name: "Stop GPCC if it's running."
+      shell: "gpcc stop"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+      ignore_errors: yes
+      when: inventory_hostname in groups['gpdb-mdw'] and gpcc_status.stdout.find('stopped') == -1
+
+    - name: "Check PXF status"
+      shell: "/usr/local/greenplum-db/pxf/bin/pxf cluster status"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+      ignore_errors: yes
+      register: pxf_status
+      when: inventory_hostname in groups['gpdb-mdw']
+      failed_when: "pxf_status.rc > 2"
+
+    - name: "Stop PXF if it's running."
+      shell: "/usr/local/greenplum-db/pxf/bin/pxf cluster stop"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+      ignore_errors: yes
+      when: inventory_hostname in groups['gpdb-mdw'] and pxf_status.stdout.find('not running') == -1
+
+    - name: "Check if the GPDB process remains."
+      shell: "ps -ef |grep -v grep |grep postgres |wc -l"
+      register: gpdb_status
+      ignore_errors: yes
+      failed_when: false
+
+    - name: "Stop GPDB if it's running."
+      shell: "gpstop -af"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+      any_errors_fatal: true
+      when: inventory_hostname in groups['gpdb-mdw'] and gpdb_status.stdout != "0"
+
+    - name: "Change ownership '/usr/local'"
+      file:
+        path: /usr/local
+        owner: root
+        group: root
+        mode: '0777'
+
+    - name: "Check Old Backup GPDB directory (old version)"
+      stat:
+        path: "/usr/local/greenplum-db-{{ backup_gpdb }}_bak"
+      register: gpdb_b_dir
+
+    - name: "Delete Old Backup GPDB directory if exists (old version)"
+      shell: "rm -rf /usr/local/greenplum-db-{{ backup_gpdb }}_bak"
+      when: gpdb_b_dir.stat.exists == true
+
+    - name: "Check Old Original GPDB directory (old version)"
+      stat:
+        path: "/usr/local/greenplum-db-{{ backup_gpdb }}"
+      register: gpdb_dir
+
+    - name: "Backup Old Original GPDB directory if exists( old version)"
+      shell: "cp -r /usr/local/greenplum-db-{{ backup_gpdb }} /usr/local/greenplum-db-{{ backup_gpdb }}_bak"
+      when: gpdb_dir.stat.exists == true
+
+    - name: "Check New GPDB directory (new version)"
+      stat:
+        path: "/usr/local/greenplum-db-{{ gpdb_version }}"
+      register: gpdb_n_dir
+
+    - name: "Delete New GPDB directory if exists (new version)"
+      shell: "rm -rf /usr/local/greenplum-db-{{ gpdb_version }}"
+      when: gpdb_n_dir.stat.exists == true
+
+    - name: "Backup crontab"
+      shell: "crontab -l > /home/gpadmin/gpconfigs/crontab.bak"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+      ignore_errors: yes
+      when: inventory_hostname in groups['gpdb-mdw']
+
+    - name: "Backup postgresql.conf"
+      shell: "{{ item }}"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+      ignore_errors: yes
+      with_items:
+        - "cp -f /data/master/gpseg-1/postgresql.conf /home/gpadmin/gpconfigs/postgresql.conf.mdw"
+        - "scp sdw1:{{ sdw1_gpseg0_path }}/postgresql.conf /home/gpadmin/gpconfigs/postgresql.conf.sdw"
+      when: inventory_hostname in groups['gpdb-mdw']
+
+    - name: "Backup pg_hba.conf"
+      shell: "{{ item }}"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+      ignore_errors: yes
+      with_items:
+        - "cp -f /data/master/gpseg-1/pg_hba.conf /home/gpadmin/gpconfigs/pg_hba.conf.mdw"
+        - "scp sdw1:{{ sdw1_gpseg0_path }}/pg_hba.conf /home/gpadmin/gpconfigs/pg_hba.conf.sdw"
+      when: inventory_hostname in groups['gpdb-mdw']
+
+    - name: "Remove GPDB rpm"
+      yum:
+        name: greenplum-db*
+        state: absent
+
+    - name: "Copy GPDB rpm file to all host"
+      copy:
+        src: "{{ gpdb_src_path }}/{{ gpdb_upgrade_file }}"
+        dest: "/tmp/"
+        owner: "{{ greenplum_admin_user }}"
+        group: "{{ greenplum_admin_user }}"
+        mode: '0644'
+
+    - name: "Install GPDB new version"
+      yum:
+        name: "/tmp/{{ gpdb_upgrade_file }}"
+        state: present
+
+    - name: "Change Owner: {{ gpdb_home }}*"
+      shell: "chown -R gpadmin:gpadmin {{ gpdb_home }}*"
+
+    - name: "Change ownership '/usr/local'"
+      file:
+        path: /usr/local
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: "Start GPDB Service"
+      shell: "gpstart -a"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+      any_errors_fatal: true
+      when: inventory_hostname in groups['gpdb-mdw']
+
+    - name: "Check Exist of madlib package file"
+      stat:
+        path: "{{ gpdb_src_path }}/{{ madlib_upgrade_file }}"
+      register: madlib_file_st
+      ignore_errors: yes
+      when: inventory_hostname in groups['gpdb-mdw']
+
+    - name: "Unarchive madlib package file"
+      unarchive:
+        src: "{{ gpdb_src_path }}/{{ madlib_upgrade_file }}"
+        dest: "{{ gpdb_src_path }}"
+        owner: "{{ greenplum_admin_user }}"
+        group: "{{ greenplum_admin_user }}"
+        remote_src: yes
+      ignore_errors: yes
+      when: inventory_hostname in groups['gpdb-mdw'] and madlib_file_st.stat.exists == true
+
+    - name: "Install madlib package file"
+      shell: "gppkg -i {{ gpdb_src_path }}/{{ madlib_file_archive_name }}/{{ madlib_file_archive_name }}.gppkg"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+      ignore_errors: yes
+      when: inventory_hostname in groups['gpdb-mdw'] and madlib_file_st.stat.exists == true
+
+    - name: "Adding MADlib Functions to a Database"
+      shell: "{{ gpdb_home }}/madlib/bin/madpack -s madlib -p greenplum -c gpadmin@mdw:5432/postgres install"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+      ignore_errors: yes
+      when: inventory_hostname in groups['gpdb-mdw'] and madlib_file_st.stat.exists == true
+
+    - name: "Delete madlib binary directory"
+      file:
+        path: "{{ gpdb_src_path }}/{{ madlib_file_archive_name }}"
+        state: absent
+      ignore_errors: yes
+      when: inventory_hostname in groups['gpdb-mdw'] and madlib_file_st.stat.exists == true
+
+    - name: "Check '/usr/local/greenplum-pxf' exists"
+      stat:
+        path: /usr/local/greenplum-pxf
+      register: pxf_st
+      ignore_errors: yes
+
+    - name: "Initializing PXF on All Hosts of Cluster"
+      shell: "{{ pxf_home }}/bin/pxf cluster init true"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+      ignore_errors: yes
+      when: inventory_hostname in groups['gpdb-mdw'] and pxf_st.stat.exists == true
+
+    - name: "Sync PXF on All Hosts of Cluster"
+      shell: "{{ pxf_home }}/bin/pxf cluster sync"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+      ignore_errors: yes
+      when: inventory_hostname in groups['gpdb-mdw'] and pxf_st.stat.exists == true
+
+    - name: "Starting PXF Server on All Hosts of Cluster"
+      shell: "{{ pxf_home }}/bin/pxf cluster start"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+      ignore_errors: yes
+      when: inventory_hostname in groups['gpdb-mdw'] and pxf_st.stat.exists == true
+
+    - name: "Delete Old Original GPDB directory if exists (old version)"
+      shell: "rm -rf /usr/local/greenplum-db-{{ backup_gpdb }}"
+      when: gpdb_dir.stat.exists == true

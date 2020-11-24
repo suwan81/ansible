@@ -1,0 +1,195 @@
+---
+- hosts:
+    - localhost
+  gather_facts: false
+  tasks:
+    - name: "Waiting for SSH(TCP/22) on All Hosts"
+      wait_for:
+        timeout: 600
+        host: "{{ item }}"
+        port: 22
+        sleep: 10
+      with_items:
+        - "{{ groups['all'] }}"
+
+- hosts:
+    - all
+  gather_facts: true
+  vars_files:
+    - "vars-common.yml"
+    - "version_files.yml"
+  vars:
+    - greenplum_admin_user: "gpadmin"
+  tasks:
+#    - name: "Check Exist of Greenplum Command Center directory"
+#      stat:
+#        path: "/usr/local/{{ gpcc_prefix_name }}-{{ gpcc_file_version }}"
+#      register: stat_result
+#      when: inventory_hostname in groups['gpdb-mdw']
+
+#    - name: "Check if gpcc directory exists"
+#      stat:
+#        path: "/usr/local/greenplum-cc"
+#      register: stat_result
+
+    - name: "Install 'apr-util' for Greenplum Command Center"
+      yum:
+        name: "apr-util"
+        state: installed
+      when: inventory_hostname in groups['gpdb-mdw'] or inventory_hostname in groups['gpdb-smdw']
+
+    - name: "Unzip Greenplum Command Center file"
+      unarchive:
+        src: "{{ gpdb_src_path }}/{{ gpcc_file_name }}"
+        dest: "/tmp/"
+        owner: "{{ greenplum_admin_user }}"
+        group: "{{ greenplum_admin_user }}"
+        remote_src: yes
+#      when: inventory_hostname in groups['gpdb-mdw'] and stat_result.stat.exists == false
+      ignore_errors: yes
+      when: inventory_hostname in groups['gpdb-mdw']
+
+    - name: "Generate gpcc-install.conf for Install Greenplum Command Center"
+      template:
+        src: "../templates/gpcc-install.conf.j2"
+        dest: "{{ gpadmin_user_home }}/gpconfigs/gpcc-install.conf"
+        owner: "{{ greenplum_admin_user }}"
+        group: "{{ greenplum_admin_user }}"
+        mode: '0644'
+        backup: yes
+#      when: inventory_hostname in groups['gpdb-mdw'] and stat_result.stat.exists == false
+      ignore_errors: yes
+      when: inventory_hostname in groups['gpdb-mdw']
+
+    - name: "Change Permission /usr/local"
+      file:
+        path: "/usr/local"
+        mode: '0777'
+
+    - name: "Check Backup GPCC directory (backup version)"
+      stat:
+        path: "/usr/local/{{ gpcc_home }}-{{ gpcc_file_version }}_bak"
+      register: gpcc_b_dir
+
+    - name: "Delete Backup GPCC directory if exists (backup version)"
+      shell: "rm -rf /usr/local/{{ gpcc_home }}-{{ gpcc_file_version }}_bak"
+      when: gpcc_b_dir.stat.exists == true
+
+    - name: "Check Original GPCC directory (new version)"
+      stat:
+        path: "/usr/local/{{ gpcc_home }}-{{ gpcc_file_version }}"
+      register: gpcc_dir
+
+    - name: "Backup Original GPCC directory if exists (new version)"
+      shell: "cp -r /usr/local/{{ gpcc_home }}-{{ gpcc_file_version }} /usr/local/{{ gpcc_home }}-{{ gpcc_file_version }}_bak"
+      when: gpcc_dir.stat.exists == true
+
+    - name: "Delete Original GPCC directory if exists (new version)"
+      shell: "rm -rf /usr/local/{{ gpcc_home }}-{{ gpcc_file_version }}"
+      when: gpcc_dir.stat.exists == true
+
+    - name: "Install Greenplum Command Center"
+      shell: "/tmp/{{ gpcc_file_archive_name }}/gpccinstall-{{ gpcc_file_version }} -c {{ gpadmin_user_home }}/gpconfigs/gpcc-install.conf"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+#      when: inventory_hostname in groups['gpdb-mdw'] and stat_result.stat.exists == false
+      ignore_errors: yes
+      when: inventory_hostname in groups['gpdb-mdw']
+
+    - name: "Symlink for Greenplum Command Center"
+      file:
+        src: "/usr/local/{{ gpcc_prefix_name }}-{{ gpcc_file_version }}"
+        dest: "/usr/local/{{ gpcc_prefix_name }}"
+        owner: "{{ greenplum_admin_user }}"
+        group: "{{ greenplum_admin_user }}"
+        state: link
+#      when: inventory_hostname in groups['gpdb-mdw'] or inventory_hostname in groups['gpdb-smdw']
+
+#    - name: "Delete Greenplum Command Center binary directory"
+#      file:
+#        path: "{{ gpdb_src_path }}/{{ gpcc_file_archive_name }}"
+#        state: absent
+#      when: inventory_hostname in groups['gpdb-mdw']
+
+    - name: "Enabled Greenplum Command Center parameter(1)"
+      replace:
+        path: "{{ gpadmin_user_home }}/.bash_profile"
+        regexp: "{{ item.regexp1 }}"
+        replace: "{{ item.replace }}"
+      with_items:
+        - { regexp1: '^#export GPPERFMONHOME=', replace: 'export GPPERFMONHOME={{ gpcc_home }}' }
+      when: inventory_hostname in groups['gpdb-mdw'] or inventory_hostname in groups['gpdb-smdw']
+
+    - name: "Enabled Greenplum Command Center parameter(2)"
+      replace:
+        path: "{{ gpadmin_user_home }}/.bash_profile"
+        regexp: "{{ item.regexp1 }}"
+        replace: "{{ item.replace }}"
+      with_items:
+        - { regexp1: '^#source \$GPPERFMONHOME/gpcc_path.sh', replace: 'source $GPPERFMONHOME/gpcc_path.sh' }
+      when: inventory_hostname in groups['gpdb-mdw'] or inventory_hostname in groups['gpdb-smdw']
+
+    - name: "Set Master pg_hba.conf for Greenplum Command Center/GPMON"
+      lineinfile:
+        path: "{{ pg_hba_conf_path }}"
+        regexp: "^host all gpmon {{ item }}/32 md5$"
+        line: "host all gpmon {{ item }}/32 md5"
+        insertafter: EOF
+        state: present
+      when: inventory_hostname in groups['gpdb-mdw'] and (item is defined or item != "false")
+      with_items:
+        - "{{ hostvars[groups['gpdb-mdw'][0]]['bd_vip'] }}"
+        - "{{ hostvars[groups['gpdb-mdw'][0]]['bd_ip'] }}"
+        - "{{ hostvars[groups['gpdb-smdw'][0]]['bd_ip'] }}"
+
+    - name: "Restart GPDB"
+      shell: "gpstop -arf"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+      when: inventory_hostname in groups['gpdb-mdw']
+
+    - name: "Copy pg_hba.conf for Greenplum Command Center/GPMON, from master to standby (If Standby is exist...)"
+      copy:
+        src: "{{ pg_hba_conf_path }}"
+        dest: "{{ pg_hba_conf_path }}"
+      when: inventory_hostname in groups['gpdb-smdw']
+
+    - name: "Check Exist of MetricsCollector Package file"
+      stat:
+        path: "{{ gpcc_home }}/gppkg/{{ gpcc_MetricsCollector_file_name }}"
+      register: MetricsCollector_stat_result
+      when: inventory_hostname in groups['gpdb-mdw']
+
+    - name: "Setup MetricsCollector Package"
+      shell: "gppkg -i {{ gpcc_home }}/gppkg/{{ gpcc_MetricsCollector_file_name }} -a"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+      register: gppkg_MetricsCollector_result
+      when: inventory_hostname in groups['gpdb-mdw'] and MetricsCollector_stat_result.stat.exists == true
+
+    - name: "Restart GPDB"
+      shell: "gpstop -arf"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+      when: inventory_hostname in groups['gpdb-mdw']
+      
+    - name: "Start Greenplum Command Center"
+      shell: "gpcc start"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+      when: inventory_hostname in groups['gpdb-mdw']
+
+    - name: "Change Permission /usr/local"
+      file:
+        path: "/usr/local"
+        mode: '0755'

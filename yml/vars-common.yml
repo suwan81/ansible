@@ -12,12 +12,12 @@ ntp:
   disable: "monitor"
   server:
     mdw:
-      - "192.25.52.240 prefer burst iburst"
-      - "192.25.52.241 burst iburst"
+      - "xxx.xxx.xxx.xxx prefer burst iburst"
+      - "xxx.xxx.xxx.xxx burst iburst"
     sdw:
       - "mdw prefer burst iburst"
-      - "192.25.52.240 burst iburst"
-      - "192.25.52.241 burst iburst"
+      - "xxx.xxx.xxx.xxx burst iburst"
+      - "xxx.xxx.xxx.xxx burst iburst"
 
 if_name: "{{ hostvars[inventory_hostname]['ansible_default_ipv4']['interface'] }}"
 nic_conf_file: "/etc/sysconfig/network-scripts/ifcfg-{{ if_name }}"
@@ -87,16 +87,16 @@ pxf_env:
   pxf_user_impersonation: "false"
 hadoop_home: "/usr/hdp/current/hadoop-client"
 pxf_hadoop_home: "{{ hadoop_home }}"
-pxf_hdfs_default_fs: "hdfs://nn.service.datalake.sec.com"
+pxf_hdfs_default_fs: "hdfs://service.hdfs.com"
 
-s3_fs_s3a_endpoint: "s3.api.datalake.sec.com:9090"
+s3_fs_s3a_endpoint: "data.lake.com"
 s3_fs_s3a_access_key: "shlee99.id"
 s3_fs_s3a_secret_key: "xr0ZR15NlCcengHlUjlhEwYRg93UP2pK96mnFccbB"
 s3_fs_s3a_fast_upload: "true"
 
-h500_core_site_fs: "hdfs://bdsi.datalake.sec.com:8020"
-x410_core_site_fs: "hdfs://ds.isilon.gphd.com:8020"
-x410_core_site_fs_tmp: "hdfs://192.25.53.11:8020"
+h500_core_site_fs: "hdfs://data.lake.com"
+x410_core_site_fs: "hdfs://data.lake.com"
+x410_core_site_fs_tmp: "hdfs://data.lake.com"
 core_site_io: 8192
 
 #fact_divide_protect_memory: "{% if enable_mirror_seg_instances %}{{ (number_of_seg_instances_per_node * 2) }}{% else %}{{ number_of_seg_instances_per_node }}{% endif %}"

@@ -16,7 +16,6 @@ version_files_yml=./yml/version_files.yml
 vars_common_path=./yml/vars-common.yml
 upgrade_files_yml=./yml/upgrade_files.yml
 uninstall_st=./yml/uninstall_st.yml
-temp_val=./yml/temp_val.yml
 sou_path=/root/gpdb-src
 src_path=/data/staging
 
@@ -53,7 +52,7 @@ function converter_inventory_raw2lst(){
  cat $INPUT | while read LINE
  do
   L2A=($(echo $LINE | tr ',' "\n"))
-  role=($(echo ${L2A[0]} | awk -F'role=' '{print$2}'))
+  role=$(echo ${L2A[0]} | awk -F'role=' '{print$2}')
   nodename=$(echo ${L2A[3]} | awk -F'bd_nodename=' '{print$2}')
   if [ "$role" == "global_vars" ];then
    for i in `seq 1 $((${#L2A[@]} -1))`
@@ -91,6 +90,7 @@ function converter_inventory_raw2lst(){
  cat $OUTPUT_SMDW >> $OUTPUT
  echo "" >> $OUTPUT
  cat $OUTPUT_SDW >> $OUTPUT
+
  echo "========================= inventory.lst ======================="
  cat $OUTPUT
  echo "===============================================================" 
@@ -99,64 +99,78 @@ function converter_inventory_raw2lst(){
 }
 
 ### Parameter for setup gpdb
-function check_file(){
-if [ "$1" == "" ];then
- def_ver=/data/staging/6-11-1
-else
- def_ver=/data/staging/$1
-fi
+functuon count_file(){
 gpdb_count=$(ls -l $src_path | grep -P "greenplum-db-[0-9]+" | grep "rpm" | awk '{print$9}' | wc -l)
 gpdb_file_name=$(ls -l $src_path | grep -P "greenplum-db-[0-9]+" | grep "rpm" | awk '{print$9}')
-gpdb_default_file=$(cat $def_ver | grep -P "greenplum-db-[0-9]+" | grep "rpm")
-gpdb_default_version=$(cat $def_ver | grep -P "greenplum-db-[0-9]+" | grep "rpm" | awk -F'-' '{print$3}')
 
 gpcc_count=$(ls -l $src_path | grep -P "greenplum-cc-web-[0-9]+" | grep -i "zip" | awk '{print$9}' | wc -l)
 gpcc_file_name=$(ls -l $src_path | grep -P "greenplum-cc-web-[0-9]+" | grep -i "zip" | awk '{print$9}')
-gpcc_default_file=$(cat $def_ver | grep -P "greenplum-cc-web-[0-9]+" | grep -i "zip")
-gpcc_default_version=$(cat $def_ver | grep -P "greenplum-cc-web-[0-9]+" | grep -i "zip" | awk -F'-' '{print$4}')
 
 #gpdb_client_count=$(ls -l $src_path | grep -P "greenplum-db-client-[0-9]+" | grep "rpm" | awk '{print$9}' | wc -l)
-#gpdb_client_file_name=$(ls -l $src_path | grep -P "greenplum-db-client-[0-9]+" | grep "rpm" | awk '{print$9}')
-#gpdb_client_default_file=$(cat $def_ver | grep -P "greenplum-db-client-[0-9]+" | grep "rpm")
-#gpdb_client_default_version=$(cat $def_ver | grep -P "greenplum-db-client-[0-9]+" | grep "rpm" | awk -F'-' '{print$4}')
+#gpdb_client_file_name=$(ls -l $src_path | grep -P "greenplum-db-client-[0-9]+" | grep "rpm" | awk '{print$9}')m" | awk -F'-' '{print$4}')
 
 #java_count=$(ls -l $src_path | grep -P "java-[0-9]{1}\. [0-9]{1}\. [0-9]{1}-openjdk" | grep "rpm" | awk '{print$9}' | wc -l)
 #java_file_name=$(ls -l $src_path | grep -P "java-[0-9]{1}\. [0-9]{1}\. [0-9]{1}-openjdk" | grep "rpm" | awek '{print$9}')
-#java_default_file=$(cat $def_ver | grep -P "java-[0-9]{1}\. [0-9]{1}\. [0-9]{1}-openjdk" | grep "rpm")
-#java_default_version=$(cat $def_ver | grep -P "java-[0-9]{1}\. [0-9]{1}\. [0-9]{1}-openjdk" | grep "rpm" | awk -F'-' '{print$4}')
 
 #hadoop_client_count=$(ls -l $src_path | grep -P "hadoop-client-[0-9]+" | grep "rpm" | awk '{print$9}' | wc -l)
 #hadoop_client_name=$(ls -l $src_path | grep -P "hadoop-client-[0-9]+" | grep "rpm" | awk '{print$9}')
-#hadoop_client_default_file=$(cat $def_ver | grep -P "hadoop-client-[0-9]+" | grep "rpm")
-#hadoop_client_default_version=$(cat $def_ver | grep -P "hadoop-client-[0-9]+" | grep "rpm" | awk -F'-' '{print$3}')
 
 pljava_count=$(ls -l $src_path | grep -P "pljava-[0-9]+" | grep "gppkg" | awk '{print$9}' | wc -l)
 pljava_file_name=$(ls -l $src_path | grep -P "pljava-[0-9]+" | grep "gppkg" | awk '{print$9}')
-pljava_default_file=$(cat $def_ver | grep -P "pljava-[0-9]+" | grep "gppkg" )
-pljava_default_version=$(cat $def_ver | grep -P "pljava-[0-9]+" | grep "gppkg" | awk -F'-' '{print$2}')
 
 plr_count=$(ls -l $src_path | grep -P "plr-[0-9]+" | grep "gppkg" | awk '{print$9}' | wc -l)
 plr_file_name=$(ls -l $src_path | grep -P "plr-[0-9]+" | grep "gppkg" | awk '{print$9}')
-plr_default_file=$(cat $def_ver | grep -P "plr-[0-9]+" | grep "gppkg")
-plr_default_version=$(cat $def_ver | grep -P "plr-[0-9]+" | grep "gppkg" | awk -F'-' '{print$2}')
 
 DataSciencePython_count=$(ls -l $src_path | grep -P "DataSciencePython-[0-9]+" | grep "gppkg" | awk '{print$9}' | wc -l)
 DataSciencePython_file_name=$(ls -l $src_path | grep -P "DataSciencePython-[0-9]+" | grep "gppkg" | awk '{print$9}')
-DataSciencePython_default_file=$(cat $def_ver | grep -P "DataSciencePython-[0-9]+" | grep "gppkg")
-DataSciencePython_default_version=$(cat $def_ver | grep -P "DataSciencePython-[0-9]+" | grep "gppkg" | awk -F'-' '{print$2}')
 
 DataScienceR_count=$(ls -l $src_path | grep -P "DataScienceR-[0-9]+" | grep "gppkg" | awk '{print$9}' | wc -l)
 DataScienceR_file_name=$(ls -l $src_path | grep -P "DataScienceR-[0-9]+" | grep "gppkg" | awk '{print$9}')
-DataScienceR_default_file=$(cat $def_ver | grep -P "DataScienceR-[0-9]+" | grep "gppkg")
-DataScienceR_default_version=$(cat $def_ver | grep -P "DataScienceR-[0-9]+" | grep "gppkg" | awk -F'-' '{print$2}')
 
 madlib_count=$(ls -l $src_path | grep -P "madlib-[0-9]+" | grep "tar.gz" | awk '{print$9}' | wc -l)
 madlib_file_name=$(ls -l $src_path | grep -P "madlib-[0-9]+" | grep "tar.gz" | awk '{print$9}')
-madlib_default_file=$(cat $def_ver | grep -P "madlib-[0-9]+" | grep "tar.gz")
-madlib_default_version=$(cat $def_ver | grep -P "madlib-[0-9]+" | grep "tar.gz" | awk -F'-' '{print$2}')
 
 gpcopy_count=$(ls -l $src_path | grep -P "gpcopy-[0-9]+" | grep "gppkg" | awk '{print$9}' | wc -l)
 gpcopy_file_name=$(ls -l $src_path | grep -P "gpcopy-[0-9]+" | grep "gppkg" | awk '{print$9}')
+}
+
+function check_file(){
+if [ "$1" == "" ];then
+ dver=$(ls ./version_check | sort -nr | head -1)
+ def_ver=/data/staging/$dver
+else
+ def_ver=/data/staging/$1
+fi
+gpdb_default_file=$(cat $def_ver | grep -P "greenplum-db-[0-9]+" | grep "rpm")
+gpdb_default_version=$(cat $def_ver | grep -P "greenplum-db-[0-9]+" | grep "rpm" | awk -F'-' '{print$3}')
+
+gpcc_default_file=$(cat $def_ver | grep -P "greenplum-cc-web-[0-9]+" | grep -i "zip")
+gpcc_default_version=$(cat $def_ver | grep -P "greenplum-cc-web-[0-9]+" | grep -i "zip" | awk -F'-' '{print$4}')
+
+#gpdb_client_default_file=$(cat $def_ver | grep -P "greenplum-db-client-[0-9]+" | grep "rpm")
+#gpdb_client_default_version=$(cat $def_ver | grep -P "greenplum-db-client-[0-9]+" | grep "rpm" | awk -F'-' '{print$4}')
+
+#java_default_file=$(cat $def_ver | grep -P "java-[0-9]{1}\. [0-9]{1}\. [0-9]{1}-openjdk" | grep "rpm")
+#java_default_version=$(cat $def_ver | grep -P "java-[0-9]{1}\. [0-9]{1}\. [0-9]{1}-openjdk" | grep "rpm" | awk -F'-' '{print$4}')
+
+#hadoop_client_default_file=$(cat $def_ver | grep -P "hadoop-client-[0-9]+" | grep "rpm")
+#hadoop_client_default_version=$(cat $def_ver | grep -P "hadoop-client-[0-9]+" | grep "rpm" | awk -F'-' '{print$3}')
+
+pljava_default_file=$(cat $def_ver | grep -P "pljava-[0-9]+" | grep "gppkg" )
+pljava_default_version=$(cat $def_ver | grep -P "pljava-[0-9]+" | grep "gppkg" | awk -F'-' '{print$2}')
+
+plr_default_file=$(cat $def_ver | grep -P "plr-[0-9]+" | grep "gppkg")
+plr_default_version=$(cat $def_ver | grep -P "plr-[0-9]+" | grep "gppkg" | awk -F'-' '{print$2}')
+
+DataSciencePython_default_file=$(cat $def_ver | grep -P "DataSciencePython-[0-9]+" | grep "gppkg")
+DataSciencePython_default_version=$(cat $def_ver | grep -P "DataSciencePython-[0-9]+" | grep "gppkg" | awk -F'-' '{print$2}')
+
+DataScienceR_default_file=$(cat $def_ver | grep -P "DataScienceR-[0-9]+" | grep "gppkg")
+DataScienceR_default_version=$(cat $def_ver | grep -P "DataScienceR-[0-9]+" | grep "gppkg" | awk -F'-' '{print$2}')
+
+madlib_default_file=$(cat $def_ver | grep -P "madlib-[0-9]+" | grep "tar.gz")
+madlib_default_version=$(cat $def_ver | grep -P "madlib-[0-9]+" | grep "tar.gz" | awk -F'-' '{print$2}')
+
 gpcopy_default_file=$(cat $def_ver | grep -P "gpcopy-[0-9]+" | grep "gppkg")
 gpcopy_default_version=$(cat $def_ver | grep -P "gpcopy-[0-9]+" | grep "gppkg" | awk -F'-' '{print$2}' | awk -F'.tar' '{print$1}')
 }
@@ -314,8 +328,9 @@ sed -i "/^kernel.shmall/ c\kernel.shmall = $k_shmall" templates/etc_sysctl.conf.
 sed -i "/^kernel.shmmax/ c\kernel.shmmax = $k_shmmax" templates/etc_sysctl.conf.j2
 sed -i "/^vm.min_free_kbytes/ c\vm.min_free_kbytes = $f_kbytes" templates/etc_sysctl.conf.j2
 
-c_mem=$(free -h | grep Mem | awk '{print$2}' | sed 's/.$//')
-if [ $c_mem -gt 64 ];then
+cmem=$(free -h | grep Mem | awk '{print$2}' | sed 's/.$//' | bc)
+cmem_v=`echo "$cmem" | awk '{print$1*10}'`
+if [ $cmem_v -gt 640 ];then
  sed -i "/vm.dirty_background_ratio = 0/ c\vm.dirty_background_ratio = 0" templates/etc_sysctl.conf.j2
  sed -i "/vm.dirty_ratio = 0/ c\vm.dirty_ratio = 0" templates/etc_sysctl.conf.j2
  sed -i "/vm.dirty_background_bytes = 1610612736/ c\vm.dirty_background_bytes = 1610612736" templates/etc_sysctl.conf.j2
@@ -339,21 +354,25 @@ function get_gpdb_patch_status(){
 c_gpdb_ct=$(ps -ef | grep -v grep | grep postgres | wc -l)
 if [ $c_gpdb_ct -ne 0 ];then
  c_gpdb_st=$(echo "$(su -l gpadmin -c 'gpstate')")
+ c_gpdb_ch="Active"
  c_gpdb_ver=$(echo "$c_gpdb_st" | grep "(Greeplum Database)" | awk '{print$8}')
  c_gppkg_st=$(echo "$(su -l gpadmin -c 'gppkg -q --all | awk 'NR!=1'')")
 else
- c_gpdb_ver="Not Started GPDB!"
+ c_gpdb_ch="stopped"
 fi
+c_gpdb_path=$(ls -l /usr/local | grep greenplum-db | grep "^l" | awk '{print$11}' | awk -F'-' '{print$3}')
 c_gpcc_ct=$(ps -ef | grep -v grep | grep ccagent | wc -l)
 if [ $c_gpcc_ct -ne 0 ];then
+ c_gpcc_ch="Active"
  c_gpcc_ver=$(echo "$(su -l gpadmin -c 'gpcc -v')" | awk '{print$NF}')
  c_gpcc_st=$(echo "$(su -l gpadmin -c 'gpcc status')")
 else
- c_gpcc_ver="Not Started GPCC!"
+ c_gpcc_ch="stopped"
 fi
+c_gpcc_path=$(ls -l /usr/local | grep greenplum-cc | grep "^l" | awk '{print$11}' | awk -F'-' '{print$3}')
 c_gpcopy_ct=$(ls -l /usr/local/greenplum-db/bin | grep gpcopy | wc -l)
 if [ $c_gpcopy_ct -eq 1 ];then
- c_gpcopy_st=$(/usr/local/greenplum-db/bin/gpcopy ?version | awk '{print$nf}')
+ c_gpcopy_st=$(/usr/local/greenplum-db/bin/gpcopy --version | awk '{print$NF}')
 else
  c_gpcopy_st="Not installed!"
 fi
@@ -378,16 +397,15 @@ function get_gpdb_conf(){
 gpdb_ct=$(ps -ef | grep -v grep | grep postgres | wc -l)
 if [ $gpdb_ct -ne 0 ];then
  gpdb_err="-1"
- gpdb_st=$(echo "$(su - l gpadmin -c 'gpstate')")
- gpconf_st1=$(echo "$(su - l gpadmin -c 'gpconfig -s max_connections')")
- gpconf_st2=$(echo "$(su - l gpadmin -c 'gpconfig -s max_prepared_transactions')")
- gpconf_st3=$(echo "$(su - l gpadmin -c 'gpconfig -s gp_vmem_protect_limit')")
- gpconf_st4=$(echo "$(su - l gpadmin -c 'gpconfig -s gp_resqueue_priority_cpucores_per_segment')")
- gpconf_st5=$(echo "$(su - l gpadmin -c 'gpconfig -s gp_resqueue_priority_inactivity_timeout')")
- gppkg_st=$(echo "$(su - l gpadmin -c 'gppkg -q --all')")
- gpconf_st6=$(echo "$(su - l gpadmin -c 'gpconfig -s xid_stop_limit')")
- gpconf_st7=$(echo "$(su - l gpadmin -c 'gpconfig -s xid_warn_limit')")
- gppkg_st=$(echo "$(su - l gpadmin -c 'gppkg -q --all')")
+ gpdb_st=$(echo "$(su -l gpadmin -c 'gpstate')")
+ gpconf_st1=$(echo "$(su -l gpadmin -c 'gpconfig -s max_connections')")
+ gpconf_st2=$(echo "$(su -l gpadmin -c 'gpconfig -s max_prepared_transactions')")
+ gpconf_st3=$(echo "$(su -l gpadmin -c 'gpconfig -s gp_vmem_protect_limit')")
+ gpconf_st4=$(echo "$(su -l gpadmin -c 'gpconfig -s gp_resqueue_priority_cpucores_per_segment')")
+ gpconf_st5=$(echo "$(su -l gpadmin -c 'gpconfig -s gp_resqueue_priority_inactivity_timeout')")
+ gpconf_st6=$(echo "$(su -l gpadmin -c 'gpconfig -s xid_stop_limit')")
+ gpconf_st7=$(echo "$(su -l gpadmin -c 'gpconfig -s xid_warn_limit')")
+ gppkg_st=$(echo "$(su -l gpadmin -c 'gppkg -q --all')")
 else
  gpdb_err="Not started GPDB!"
 fi
@@ -401,7 +419,7 @@ fi
 gpcc_ct=$(ps -ef | grep -v grep | grep ccagent | wc -l)
 if [ $gpcc_ct -ne 0 ];then
  gpcc_err="1"
- gpcc_ver=$(echo "$(su -l gpadmin -c 'gpcc-v')")
+ gpcc_ver=$(echo "$(su -l gpadmin -c 'gpcc -v')")
  gpcc_st=$(echo "$(su -l gpadmin -c 'gpcc status')")
 else
  gpcc_err="Not started GPCC!"
@@ -428,9 +446,9 @@ echo "[Current<mdw> Configuration]"
 os_ver=$(cat /tmp/check_status_$(hostname) | grep "os_ver:" | awk -F':' '{print$2}')
 ker_ver=$(cat /tmp/check_status_$(hostname) | grep "kernel_ver:" | awk -F':' '{print$2}')
 mtu=$(cat /tmp/check_status_$(hostname) | grep "mtu:" | awk -F':' '{print$2}')
-echo " OS Version.       : $os_ver"
+echo " OS Version       : $os_ver"
 echo " Kernel Version   : $ker_ver"
-echo " MTU.                  : $mtu"
+echo " MTU              : $mtu"
 echo ""
 mlist=(OS_ver Kernel_Ver MTU)
 printf "%-15s" ""

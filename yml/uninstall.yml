@@ -1,0 +1,110 @@
+---
+- hosts:
+    - localhost
+  gather_facts: false
+  tasks:
+    - name: "Waiting for SSH(TCP/22) on All Hosts"
+      wait_for:
+        timeout: 600
+        host: "{{ item }}"
+        port: 22
+        sleep: 3
+      with_items:
+        - "{{ groups['all'] }}"
+
+- hosts:
+    - all
+  gather_facts: false
+  vars_files:
+    - "vars-common.yml"
+    - "uninstall_st.yml"
+  vars:
+    - greenplum_admin_user: "gpadmin"
+  tasks:
+    - name: "gpfailover service stop"
+      shell: "systemctl stop gpfailover"
+      ignore_errors: yes
+      when: inventory_hostname in groups['gpdb-smdw']
+
+    - name: "[GPDB running] GPDB delete, GPCC stop, PXF stop"
+      shell: "{{ item }}"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+      with_items:
+        - "gpcc stop"
+        - "/usr/local/greenplum-db/pxf/bin/pxf cluster stop"
+        - "yes | gpdeletesystem -d /data/master/gpseg-1/ -f"
+      ignore_errors: yes
+      when: inventory_hostname in groups['gpdb-mdw'] and ch_db_st|int > 8
+
+    - name: "[GPDB not running] mdw delete path - /data/master"
+      file:
+        path: "/data/master"
+        state: absent
+      ignore_errors: yes
+      when: inventory_hostname in groups['gpdb-mdw'] and ch_db_st|int <= 8
+
+    - name: "[GPDB not running] smdw delete path - /data/master"
+      file:
+        path: "/data/master"
+        state: absent
+      ignore_errors: yes
+      when: inventory_hostname in groups['gpdb-smdw'] and ch_db_st|int <= 8
+
+    - name: "[GPDB not running] sdw delete path - /data"
+      file:
+        path: "{{ item }}"
+        state: absent
+      with_items:
+        - "{{ seg_dir }}/primary"
+        - "{{ seg_dir }}/mirror"
+      ignore_errors: yes
+      when: inventory_hostname in groups['gpdb-sdw'] and ch_db_st|int <= 8
+
+    - name: "[GPDB not running] sdw delete path - /data1 | /data2"
+      file:
+        path: "{{ item }}"
+        state: absent
+      with_items:
+        - "{{ seg_dir1 }}/primary"
+        - "{{ seg_dir1 }}/mirror"
+        - "{{ seg_dir2 }}/primary"
+        - "{{ seg_dir2 }}/mirror"
+      ignore_errors: yes
+      when: inventory_hostname in groups['gpdb-sdw'] and ch_db_st|int <= 8
+
+    - name: "Delete link file in GPDB and GPCC"
+      file:
+        path: "/usr/local/{{ item }}"
+        state: absent
+      ignore_errors: yes
+      with_items:
+        - "greenplum-db"
+        - "greenplum-cc"
+        - "greenplum-cc-web"
+
+    - name: "Delete tmp socket file - .s.PGSQL | .s.GPMC"
+      shell: "rm -f /tmp/{{ item }}"
+      with_items:
+        - .s.GPMC*
+        - .s.PGSQL*
+
+    - name: "Check GPDB Path"
+      stat:
+        path: "{{ gpdb_old_version }}"
+      register: gpdb_path
+
+    - name: "Backup - Rename old GPDB Path"
+      shell: "mv {{ gpdb_old_version }} {{ gpdb_old_version }}.old"
+      when: gpdb_path.stat.exists == true
+
+    - name: "Check GPCC Path"
+      stat:
+        path: "{{ gpcc_old_version }}"
+      register: gpcc_path
+
+    - name: "Backup - Rename old GPCC Path"
+      shell: "mv {{ gpcc_old_version }} {{ gpcc_old_version }}.old"
+      when: gpcc_path.stat.exists == true

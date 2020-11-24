@@ -1,0 +1,195 @@
+---
+- hosts:
+    - all
+  gather_facts: false
+  vars_files:
+    - "vars-common.yml"
+    - "upgrade_files.yml"
+  vars:
+    - greenplum_admin_user: "gpadmin"
+  tasks:
+    - name: "Check GPDB version"
+      shell: "gpstate -Q |grep \"local Greenplum Version\" |awk '{print $8}'"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+      register: gpdb_version_info
+
+    - name: "Change ownership '/usr/local'."
+      file:
+        path: /usr/local
+        owner: root
+        group: root
+        mode: '0777'
+
+    - name: "Stop GPCC if running."
+      shell: "gpcc stop"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+      ignore_errors: yes
+      when: inventory_hostname in groups['gpdb-mdw']
+
+    - name: "Check Old Backup GPCC directory (old version)"
+      stat:
+        path: "/usr/local/{{ gpcc_old_prefix_name }}-{{ gpcc_old_version }}_bak"
+      register: gpcc_b_dir
+
+    - name: "Delete Old Backup GPCC directory if exists (old version)"
+      shell: "rm -rf /usr/local/{{ gpcc_old_prefix_name }}-{{ gpcc_old_version }}_bak"
+      when: gpcc_b_dir.stat.exists == true
+
+    - name: "Check Old GPCC directory (old version)"
+      stat:
+        path: "/usr/local/{{ gpcc_old_prefix_name }}-{{ gpcc_old_version }}"
+      register: gpcc_dir
+
+    - name: "Backup Old GPCC directory if exists (old version)"
+      shell: "cp -r /usr/local/{{ gpcc_old_prefix_name }}-{{ gpcc_old_version }} /usr/local/{{ gpcc_old_prefix_name }}-{{ gpcc_old_version }}_bak"
+      when: gpcc_dir.stat.exists == true
+
+    - name: "Check New GPCC directory (new version)"
+      stat:
+        path: "/usr/local/{{ gpcc_new_prefix_name }}-{{ gpcc_version }}"
+      register: gpcc_n_dir
+
+    - name: "Delete New GPCC directory if exists (new version)"
+      shell: "rm -rf /usr/local/{{ gpcc_new_prefix_name }}-{{ gpcc_version }}"
+      when: gpcc_n_dir.stat.exists == true
+
+    - name: "Unarchive GPCC zip file"
+      unarchive:
+        src: "{{ gpdb_src_path }}/{{ gpcc_upgrade_file }}"
+        dest: "/tmp/"
+        owner: "{{ greenplum_admin_user }}"
+        group: "{{ greenplum_admin_user }}"
+        mode: '0755'
+      when: inventory_hostname in groups['gpdb-mdw']
+
+    - name: "Create GPCC directory"
+      shell: "yes | /tmp/greenplum-cc-web-{{ gpcc_version }}-gp6-rhel7-x86_64/gpccinstall-{{ gpcc_version }} -u"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+      when: inventory_hostname in groups['gpdb-mdw']
+
+    - name: "Remove old GPCC symbolic link"
+      file:
+        path: "/usr/local/{{ gpcc_old_prefix_name }}"
+        state: absent
+      ignore_errors: yes
+
+    - name: "Create new GPCC symbolic link"
+      file:
+        src: "/usr/local/{{ gpcc_new_prefix_name }}-{{ gpcc_version }}"
+        dest: "/usr/local/{{ gpcc_new_prefix_name }}"
+        owner: "{{ greenplum_admin_user }}"
+        group: "{{ greenplum_admin_user }}"
+        mode: '0777'
+        state: link
+
+    - name: "Change GPPERFMONHOME path in .bashrc"
+      replace:
+        path: "{{ gpadmin_user_home }}/.bashrc"
+        regexp: "^GPPERFMONHOME=/usr/local/{{ gpcc_old_prefix_name }}"
+        replace: "GPPERFMONHOME=/usr/local/{{ gpcc_new_prefix_name }}"
+      when: inventory_hostname in groups['gpdb-mdw'] or inventory_hostname in groups['gpdb-smdw']
+
+    - name: "Check Metrics Collector version"
+      shell: "gppkg -q --all | grep MetricsCollector"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+      register: metrics_collector
+      ignore_errors: yes
+      when: inventory_hostname in groups['gpdb-mdw']
+      failed_when: "metrics_collector.rc > 2"
+
+    - name: "Remove the old GPCC Metrics Collector"
+      shell: "gppkg -r {{ metrics_collector.stdout }}"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+      ignore_errors: yes
+      when: inventory_hostname in groups['gpdb-mdw'] and metrics_collector.rc == 0 
+
+    - name: "Drop Extension Metrics Collector"
+      shell: "psql -d gpperfmon -c \"DROP EXTENSION metrics_collector;\""
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+      ignore_errors: yes
+      when: inventory_hostname in groups['gpdb-mdw']    
+
+    - name: "Upgrade the new GPCC metrics collector"
+      shell: "gppkg -i /usr/local/{{ gpcc_new_prefix_name }}/gppkg/MetricsCollector-{{ gpcc_version }}_gp_{{ gpdb_version_info.stdout }}-rhel7-x86_64.gppkg"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+      when: inventory_hostname in groups['gpdb-mdw']
+
+    - name: "Stop pxf if it's running"
+      shell: "/usr/local/greenplum-db/pxf/bin/pxf cluster stop"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+      ignore_errors: yes
+      when: inventory_hostname in groups['gpdb-mdw']
+
+    - name: "Stop GPDB Service"
+      shell: "gpstop -af"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+      ignore_errors: yes
+      when: inventory_hostname in groups['gpdb-mdw']
+
+    - name: "Reload Environment Path file"
+      shell: "source /usr/local/greenplum-cc/gpcc_path.sh"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+      ignore_errors: yes
+      when: inventory_hostname in groups['gpdb-mdw']
+
+
+    - name: "Start GPDB Service"
+      shell: "gpstart -a"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+      ignore_errors: yes
+      when: inventory_hostname in groups['gpdb-mdw']
+
+    - name: "Start GPCC"
+      shell: "gpcc start"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+      ignore_errors: yes
+      when: inventory_hostname in groups['gpdb-mdw']
+
+    - name: "Start PXF"
+      shell: "/usr/local/greenplum-db/pxf/bin/pxf cluster start"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+      ignore_errors: yes
+      when: inventory_hostname in groups['gpdb-mdw']
+
+    - name: "Delete Old original GPCC directory if exists (old version)"
+      shell: "rm -rf /usr/local/{{ gpcc_old_prefix_name }}-{{ gpcc_old_version }}"
+      when: gpcc_dir.stat.exists == true

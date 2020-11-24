@@ -1665,7 +1665,7 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
    msg_show " < 3.Patch > "
    echo " [Current Status]"
    echo -n " - GPDB: "
-   echo "$c_gpdb_ver"
+   echo "$c_gpdb_ch | $c_gpdb_path"
    echo " - GPDB Package List"
    for i in $c_gppkg_st
    do
@@ -1674,7 +1674,7 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
    echo -n "   > gpcopy-"
    echo "$c_gpcopy_st"
    echo -n " - GPCC: "
-   echo "$c_gpcc_ver"
+   echo "$c_gpcc_ch | $c_gpcc_path"
    echo ""
    echo " 1) Patch GPDB"
    echo " 2) Patch GPCC"
@@ -1686,207 +1686,170 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
    case $cms in
    1)
    echo ""
+   cat /dev/null > $upgrade_files_yml
+   cat /dev/null > /tmp/upgrade_list_gpdb
    msg_line " Upgrade GPDB & Package " "="
-   echo "backup_gpdb: \"$(su -l gpadmin -c "gpstate -Q" | grep "local Greenplum Version" | awk '{print $8}')\"" > $tmp_val
-   gppkg_lst=$(su -l gpadmin -c 'gppkg -q --all' | grep -v args | grep -v MetricsCollector | awk -F'-' '{print$1}')
-   gppkg_ver=$(ls -l $src_path | grep -P "greenplum-db-[0-9]+" | awk '{print$9}' | awk -F'-' '{print$3}' | uniq)
+   echo "backup_gpdb: \"$(su -l gpadmin -c "gpstate -Q" | grep "local Greenplum Version" | awk '{print $8}')\"" > $upgrade_files_yml
+   echo "sdw1_gpseg0_path: \"$(su -l gpadmin -c "ssh sdw1 'find / -name "gpseg0" -type d 2> /dev/null'")\"" >> $upgrade_files_yml
+   echo "" >> $upgrade_files_yml
+   gppkg_prefix=$(su -l gpadmin -c "gppkg -q --all" | awk NR!=1 | grep -v MetricsCollector | awk -F'-' '{print$1}')
+   gppkg_ver=$(ls -l $src_path | grep -P "greenplum-db-[0-9]+" | awk '{print$9}' | awk -F'-' '{print$3}')
    echo ""
-   echo -e -n "[NOTICE] : The GPDB will be restarted during upgrade. Do you want to upgrade now?(Yy/\033[1;31;49mNn\033[0m) "
-   read val_1
-   if [ "$val_1" == "Y" ] || [ "$val_1" == "y" ];then
-    echo ""
-    echo "Select \"GPFB\" version: "
+   echo -e -n "[NOTICE] : The GPDB will be restarted during upgrade."
+   echo ""
+   echo "Select \"GPFB\" version: "
+   no=1
+   for i in $gpdb_ver
+   do
+    echo "$no) $i" | tee -a /tmp/upgrade_list_gpdb
+    no=$((n+1))
+   done
+   read -p "Select> " a1
+   if [ "$a1" == "" ] || [ $a1 -ge $no ] || [ $a1 -lt 1 ] || [ "$(check_num $a1)" == "" ];then
+    a1=1
+   fi
+   a2=$(cat /tmp/upgrade_list_gpdb | grep "$a1)" | awk '{print2}')
+   a3=$(ls $src_path | grep greenplum_db | grep "$a2")
+   echo "gpdb_upgrade_file: \"$a3\"" >> $upgrade_files_yml
+   echo "gpdb_version: \"$a2\"" >> $upgrade_files_yml
+   echo "" >> $upgrade_files_yml
+   echo ""
+   for item in $gppkg_prefix
+   do
+    gppkg_list=$(ls $src_path | grep $item | awk -F'-' '{print$2}')
+    echo "Select \"$item\" version"
     no=1
-    cat /dev/null > $upgrade_files_yml
-    cat /dev/null > $/tmp/upgrade_list_gpdb
-    for i in $gpdb_ver
+    cat /dev/null > /tmp/upgrade_list_gppkg
+    for i in $gppkg_list
     do
-     echo "$no) $i" | tee -a /tmp/upgrade_list_gpdb
-     no=$((n+1))
+     echo "$no) $i" | tee -a /tmp/upgrade_list_gppkg
+     no=$((no+1))
     done
+    read -p "Select> " b1
+    if [ "$b1" == "" ] || [ $b1 -ge $no ] || [ $b1 -lt 1 ] || [ "$(check_num $b1)" == "" ];then
+     b1=1
+    fi
+    b2=$(cat /tmp/upgrade_list_gpdb | grep "$b1)" | awk '{print2}')
+    b3=$(ls $src_path | grep $item | grep "$b2")
+    echo $item"_upgrade_file: \"$b3\"" >> $upgrade_files_yml
+    echo $item"_version: \"$b2\"" >> $upgrade_files_yml
+    if [ "$item" == "madlib" ];then
+     b4=$(ls $src_path | grep $item | grep "$b2" | awk -F'.tar.gz' '{print$1}')
+     echo "madlib_file_archive_name: \"$b4\"" >> $upgrade_files_yml
+    fi
+    echo "" >> $upgrade_files_yml
     echo ""
-    read -p "Select> " a1
-    if [ "$a1" == "" ];then
-     a1=1
-    fi
-    cnt=$(cat /tmp/upgrade_list_gpdb | wc -l)
-    if [ $a1 -ge 1 ] && [ $a1 -le $cnt ];then
-     a2=$(cat /tmp/upgrade_list_gpdb | grep "$a1)" | awk '{print2}')
-     a3=$(ls -l $src_path | grep greenplum_db | grep "$a2" | awk '{print$9}')
-     echo "gpdb_upgrade_file: \"$a3\"" >> $upgrade_files_yml
-     echo "gpdb_version: \"$a2\"" >> $upgrade_files_yml
-     echo "" >> $upgrade_files_yml
-     echo ""
-    else
-     echo "Invalid number!"
-     chk_err=1
-     sleep 0.5
-    fi
-    if [ $chk_err -eq 1 ] ;then
-     break
-    fi
-    for item in $gppkg_lst
+   done
+   up_file_ct=$(cat $upgrade_files_yml | grep "version" | wc -l)
+   msg_line " Upgrade Version " "="
+   for (( i=1;i<=$up_file_ct;i++ ))
+   do
+    let tn=$up_file_ct-$i+1
+    printf "%-25s: %s\n" "$(cat $upgrade_files_yml | grep version | tr '[a-z]' '[A-Z]' | sed 's/DATASCIENCE/DATASCIENCE /g' | awk -F'_' '{print$1}' | tail -$tn | head -1)" "$(cat $upgrade_files_yml | grep version | awk '{print$2}' | tail -$tn | head -1)"
+   done
+   line =
+   echo -e -n "Are you sure?(Yy/\033[0;31;49mNn\033[0m) "
+   read c1
+   if [ "$c1" == "Y" ] || [ "$c1" == "y" ];then
+    echo ""
+    echo "Please wait..."
+    echo ""
+    for i in `cat $upgrade_files_yml | awk '{print$1}' | awk -F'-' '{print$1}' | uniq`
     do
-     chk_err=0
-     version_info=$(ls -l $src_path | grep $item | awk '{print$9}' | awk -F'-' '{print$2}')
-     echo "Select \"$item\" version: "
-     no=1
-     cat /dev/null > /tmp/upgrade_list_gppkg
-     for i in $version_info
-     do
-      echo "$no) $i" | tee -a /tmp/upgrade_list_gppkg
-      no=$((no+1))
-     done
-     echo ""
-     read -p "Select> " b1
-     if [ "$b1" == "" ];then
-      b1=1
-     fi
-     cnt=$(cat /tmp/upgrade_list_gppkg | wc -l)
-     if [ $b1 -ge 1 ] && [ $b1 -le $cnt ];then
-      b2=$(cat /tmp/upgrade_list_gpdb | grep "$b1)" | awk '{print2}')
-      b3=$(ls -l $src_path | grep $item | grep "$b2" | awk '{print$9}')
-      echo $item"_upgrade_file: \"$b3\"" >> $upgrade_files_yml
-      echo $item"_version: \"$b2\"" >> $upgrade_files_yml
-      echo "" >> $upgrade_files_yml
-      echo ""
-     else
-      echo "Invalid number!"
-      chk_err=1
-      sleep 0.5
-     fi
-     if [ $chk_err -eq 1 ] ;then
-      break
-     fi
-    done
-    if [ $chk_err -eq 1 ];then
-     break
-    fi
-    up_file_ct=$(cat $upgrade_files_yml | grep "version" | wc -l)
-    msg_line " Upgrade Version " "="
-    for (( i=1;i<=$up_file_ct;i++ ))
-    do
-     let tn=$up_file_ct-$i+1
-     printf "%-25s: %s\n" "$(cat $upgrade_files_yml | grep version | tr '[a-z]' '[A-Z]' | sed 's/DATASCIENCE/DATASCIENCE /g' | awk -F'_' '{print$1}' | tail -$tn | head -1)" "$(cat yml/upgrade_files.yml | grep version | awk '{print$2}' | tail -$tn | head -1)"
-    done
-    line =
-    echo -e -n "Are you sure?(Yy/\033[0;31;49mNn\033[0m) "
-    read c1
-    if [ "$c1" == "Y" ] || [ "$c1" == "y" ];then
-     echo ""
-     echo -e -n "Do you want to upgrade PXF too?(Yy/\033[0;31;49mNn\033[0m) "
-     read x1
-     if [ "$x1" == "Y" ] || [ "$x1" == "y" ];then
-      echo "9_setup-gppkg-pxf.yml" >> ./upgrade_items
-     else
-      echo "Skip PXF upgrade!"
-     fi
-     echo ""
-     echo "Please wait..."
-     echo ""
-     for i in `cat yml/upgrade_files.yml | awk '{print$1}' | awk -F'-' '{print$1}' | uniq`
-     do
-      list=$(ls -l yml/ | grep yml | grep patch | grep $i | awk '{print$9}')
+     if [ "$i" != "madlib" ] || [ "$i" != "backup" ] || [ "$i" != "sdw1" ];then
+      list=$(ls yml/ | grep yml | grep patch | grep $i)
       echo "$list" >> ./upgrade_items
-     done
-     for i in `cat ./upgrade_items`
-     do
-      date >> ${LOG_FILE}.${LOG_TIME}
-      time ansible-playbook -i inventory.lst ./yml/$i --extra-vars "ansible_user=root ansible_password={{ bd_ssh_root_pw }}" | tee -a ${LOG_FILE}.${LOG_TIME}
-      date >> ${LOG_FILE}.${LOG_TIME}
-     done
-     cat upgrade_items >> /tmp/upgrade_items-$now
-     echo ""
-     echo -e "\033[1;31;49mUpgrade Complete!!\033[0m"
-     echo -e "\033[1;31;49mIn case of unknown error, confirm is required.\033[0m"
-     echo ""
-     read -p "Press any key. Go to the main menu." qq
-    else
-     echo -n "Aborted by user."
-     read qq
-    fi
+     fi
+    done
+    sed -i "/^$/d" ./upgrade_items
+    for i in `cat ./upgrade_items`
+    do
+     date >> ${LOG_FILE}.${LOG_TIME}
+     echo "=============== Playbook Name: $i ===============" | tee -a ${LOG_FILE}.${LOG_TIME}
+     time ansible-playbook -i inventory.lst ./yml/$i --extra-vars "ansible_user=root ansible_password={{ bd_ssh_root_pw }}" | tee -a ${LOG_FILE}.${LOG_TIME}
+     date >> ${LOG_FILE}.${LOG_TIME}
+    done
+    cat upgrade_items >> /tmp/upgrade_items-$now
+    echo ""
+    echo -e "\033[1;31;49mUpgrade Complete!!\033[0m"
+    echo -e "\033[1;31;49mIn case of unknown error, confirm is required.\033[0m"
+    echo ""
+    read -p "Press any key. Go to the main menu." qq
    else
-    echo "Aborted by user"
-    read qq
+    echo -n "Aborted by user."
+    read -p "Press any key. Go to the main menu." qq
    fi
    del_tmp_file
    ;;
    2)
    echo ""
+   cat /dev/null > $upgrade_files_yml
+   cat /dev/null > /tmp/upgrade_list_gpcc
    msg_line " Upgrade GPCC " "="
+   ps_cnt=$(ps -ef | grep -v grep | grep postgres | wc -l)
+   if [ $ps_cnt -le 8 ];then
+    echo ""
+    echo -e "\033[1;31;49m[ERROR]: Database is not healthy! Please check Database first!!\033[0m"
+    exit
+   fi
    gpcc_version=$(ls -l $src_path | grep "greenplum-cc" | awk '{print$9}' | awk -F'-' '{print$4}')
    echo ""
-   echo -e -n "[NOTICE] : The GPDB will be restarted during upgrade. Do you want to upgrade now?(Yy/\033[0;31;49mNn\033[0m) "
-   read val_2
-   if [ "$val_2" == "Y" ] || [ "$val_2" =="y" ];then
+   echo "[NOTICE] : The GPDB will be restarted during upgrade."
+   echo ""
+   echo "Select \"GPCC\" version"
+   no=1
+   for i in $gpcc_version
+   do
+    echo "$no) $i" | tee -a /tmp/upgrade_list_gpcc
+    no=$((no+1))
+   done
+   read -p "Select> " c1
+   if [ "$c1" == "" ] || [ $c1 -ge $no ] || [ $c1 -lt 1 ] || [ "$(check_num $c1)" == "" ];then
+    c1=1
+   fi
+   gpcc_version_sort=$(ls -l /usr/local/ | grep "^l" | grep greenplum-cc | awk '{print$11}' | awk -F'.' '{print$2}')
+   gpcc_old_ver=$(ls -l /usr/local/ | grep "^l" | grep greenplum-cc | awk '{print$11}' | awk -F'-' '{print $3}')
+   if [ $gpcc_version_sort -ge 2 ];then
+    echo "gpcc_old_prefix_name: \"greenplum-cc\"" >> $upgrade_files_yml
+   else
+    echo "gpcc_old_prefix_name: \"greenplum-cc-web\"" >> $upgrade_files_yml
+   fi
+   echo "gpcc_old_version: \"$gpcc_old_ver\"" >> $upgrade_files_yml
+   c2=$(cat /tmp/upgrade_list_gpcc | grep "$c1" | awk '{print$2}')
+   c3=$(ls -l $src_path | grep greenplum-cc | grep "$c2" | awk '{print$9}')
+   echo "gpcc_upgrade_file: \"$c3\"" >> $upgrade_files_yml
+   echo "gpcc_version: \"$c2\"" >> $upgrade_files_yml
+   echo ""
+   gpcc_new_prefix_version=$(cat $upgrade_files_yml | grep gpcc_version | awk -F'.' '{print$2}')
+   if [ $gpcc_new_prefix_version -ge 2 ];then
+    echo "gpcc_new_prefix_name: \"greenplum-cc\"" >> $upgrade_files_yml
+   else
+    echo "gpcc_new_prefix_name: \"greenplum-cc-web\"" >> $upgrade_files_yml
+   fi
+   echo ""
+   up_file_ct=$(cat $upgrade_files_yml | grep "gpcc_version" | wc -l)
+   msg_line " Upgrade Version " "="
+   for (( i=1;i<=$up_file_ct;i++ ))
+   do
+    let tn=$up_file_ct-$i+1
+    printf "%-25s: %s\n" "$(cat $upgrade_files_yml | grep gpcc_version | tr '[a-z]' '[A-Z]' | awk -F'_' '{print$1}' | tail -$tn | head -1)" "$(cat $upgrade_files_yml | grep gpcc_version | awk '{print$2}')"
+   done
+   line =
+   echo -e -n "Are you sure?(Yy/\033[0;31;49mNn\033[0m) "
+   read d1
+   if [ "$d1" == "Y" ] || [ "$d1" == "y" ];then
     echo ""
-    echo "Select \"GPCC\" version: "
-    no=1
-    cat /dev/null > $upgrade_files_yml
-    cat /dev/null > /tmp/upgrade_list_gpcc
-    for i in $gpcc_version
-    do
-     echo "$no) $i" | tee -a /tmp/upgrade_list_gpcc
-     no=$((no+1))
-    done
+    echo "Upgrade to \"$c2\". Please wait..."
+    date >> ${LOG_FILE}.${LOG_TIME}
+    echo "=============== Playbook Name: 2_patch-gpcc.yml ===============" | tee -a ${LOG_FILE}.${LOG_TIME}
+    time ansible-playbook -i inventory.lsyt ./yml/2_patch-gpcc.yml --extra-vars "ansible_user=root ansible_password={{ bd_ssh_root_pw }}" | tee -a ${LOG_FILE}.${LOG_TIME}
+    date >> ${LOG_FILE}.${LOG_TIME}
     echo ""
-    read -p "Select> " c1
-    if [ "$c1" == "" ];then
-     c1=1
-    fi
-    gpcc_version_sort=$(ls -l /usr/local/ | grep "^l" | grep greenplum-cc | awk '{print$11}' | awk -F'.' '{print$2}')
-    if [ $gpcc_version_sort -ge 2 ];then
-     echo "gpcc_old_prefix_name: \"greenplum-cc\"" >> $upgrade_files_yml
-    else
-     echo "gpcc_old_prefix_name: \"greenplum-cc-web\"" >> $upgrade_files_yml
-    fi
-    cnt=$(cat /tmp/upgrade_list_gpcc | wc -l)
-    if [ $c1 -ge 1 ] && [ $c1 -le $cnt ];then
-     c2=$(cat /tmp/upgrade_list_gpcc | grep "$c1" | awk '{print$2}')
-     c3=$(ls -l $src_path | grep greenplum-cc | grep "$c2" | awk '{print$9}')
-     echo "gpcc_upgrade_file: \"$c3\"" >> $upgrade_files_yml
-     echo "gpcc_version: \"$c2\"" >> $upgrade_files_yml
-     echo ""
-    else
-     echo "Invalid number!"
-     sleep 0.5
-    fi
-    gpcc_new_prefix_version=$(cat $upgrade_files_yml | grep gpcc_version | awk -F'.' '{print$2}')
-    if [ $gpcc_new_prefix_version -ge 2 ];then
-     echo "gpcc_new_prefix_name: \"greenplum-cc\"" >> $upgrade_files_yml
-    else
-     echo "gpcc_new_prefix_name: \"greenplum-cc-web\"" >> $upgrade_files_yml
-    fi
-    echo ""
-    up_file_ct=$(cat $upgrade_files_yml | grep "gpcc_version" | wc -l)
-    msg_line " Upgrade Version " "="
-    for (( i=1;i<=$up_file_ct;i++ ))
-    do
-     let tn=$up_file_ct-$i+1
-     printf "%-25s: %s\n" "$(cat $upgrade_files_yml | grep gpcc_version | tr '[a-z]' '[A-Z]' | awk -F'_' '{print$1}' | tail -$tn | head -1)" "$(cat yml/upgrade_files.yml | grep gpcc_version | awkj '{print$2}')"
-    done
-    line =
-    echo -e -n "Are you sure?(Yy/\033[0;31;49mNn\033[0m) "
-    read d1
-    if [ "$d1" == "Y" ] || [ "$d1" == "y" ];then
-     ps_cnt=$(ps -ef | grep -v grep | grep postgres | wc -l)
-     if [ $ps_cnt -le 8 ];then
-      echo ""
-      echo -e "\033[1;31;49m[ERROR] : Database is not healthy! Please check Database first!!\033[0m"
-      exit
-     fi
-     echo ""
-     echo "Upgrade to \"$c2\". Please wait..."
-     date >> ${LOG_FILE}.${LOG_TIME}
-     echo "=============== Playbook Name: 2_patch-gpcc.yml ===============" | tee -a ${LOG_FILE}.${LOG_TIME}
-     time ansible-playbook -i inventory.lsyt ./yml/2_patch-gpcc.yml --extra-vars "ansible_user=root ansible_password={{ bd_ssh_root_pw }}" | tee -a ${LOG_FILE}.${LOG_TIME}
-     date >> ${LOG_FILE}.${LOG_TIME}
-     echo ""
-     echo "Upgrade Complete!!"
-     read -p "Press any key. Go to the main menu." qq
-    else
-     echo "Aborted by user"
-     read qq
+    echo "Upgrade Complete!!"
+    read -p "Press any key. Go to the main menu." qq
+   else
+    echo "Aborted by user"
+    read qq
     fi
    else
     echo "Aborted by user"
@@ -1968,7 +1931,12 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
   echo -e -n "Continue?(Yy/\033[0;31;49mNn\033[0m) "
   read sel
   if [ "$sel" == "Y" ] || [ "$sel" == "y" ];then
-   echo "ch_db_st: \"$(su -l gpadmin -c 'ps =ef | grep -v grep | grep postgres | wc -l')\"" > $uninstall_st
+   echo "ch_db_st: \"$(su -l gpadmin -c 'ps =ef | grep -v grep | grep postgres | wc -l')\"" > $uninstall_yml
+   echo "gpdb_old_version: \"$(ls -l /usr/local | grep "^l" | grep greenplum-db | awk '{print$11}')\"" >> $uninstall_yml
+   echo "gpcc_old_version: \"$(ls -l /usr/local | grep "^l" | grep greenplum-cc | awk '{print$11}')\"" >> $uninstall_yml
+   echo "seg_dir: \"/data\"" >> $uninstall_yml
+   echo "seg_dir1: \"/data1\"" >> $uninstall_yml
+   echo "seg_dir2: \"/data2\"" >> $uninstall_yml
    echo ""
    date >> ${LOG_FILE}.${LOG_TIME}
    echo "=============== Playbook Name: uninstall.yml ===============" | tee -a ${LOG_FILE}.${LOG_TIME}
@@ -1991,7 +1959,7 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
   *)
   ;;
   esac
-  del_tmp_file
+ del_tmp_file
  done
 elif [ $# -eq 3 ] && [ "$sm" == "test" ];then
  rpm -qa > /tmp/rpm_check.txt
@@ -2001,7 +1969,9 @@ elif [ $# -eq 3 ] && [ "$sm" == "test" ];then
  init_sel
  check_vip
  check_sysctl
+ count_file
  check_file $ch_ver
+ default_to_sel
  create_version
  date >> ${LOG_FILE}.${LOG_TIME}
  echo "=============== Playbook Name: $3 ===============" | tee -a ${LOG_FILE}.${LOG_TIME}
@@ -2021,6 +1991,7 @@ elif [ $# -eq 6 ];then
  ve=$(check_alpha $5)
  vf=$(check_num $6)
  vaa=$(echo $va | sed 's/\./-/g')
+ count_file
  check_file $vaa
  vec=1
  if [ "$ve" == "N" ] || [ "$ve" == "n" ];then
@@ -2038,8 +2009,7 @@ elif [ $# -eq 6 ];then
    let ch1_seg_count=$seg_count%$vc
    let ch2_seg_count=$seg_count/$vc
    ch_standby=$(cat inventory.lst | grep smdw | grep -v gpdb | wc -l)
-   sed -i "/^number_of_seg_instances_per_node
-:/ c\ number_of_seg_instances_per_node: $vb" $vars_common_path
+   sed -i "/^number_of_seg_instances_per_node:/ c\ number_of_seg_instances_per_node: $vb" $vars_common_path
    let segment_group=($seg_count-$vc)/$vc
    sed -i "/^segment_group:/ c\segment_group: $segment_group" $vars_common_path
    sed -i "/^segment_group_count:/ c\segment_group_count: $vc" $vars_common_path
@@ -2048,42 +2018,42 @@ elif [ $# -eq 6 ];then
    line -
    msg_show " < Default GPDB Setup > "
    echo ""
-   echo " - Segment Node Count         : $seg_count"
+   echo "- Segment Node Count      : $seg_count"
    if [ $ch_standby -eq 1 ];then
-    echo "- GPDB Standby Master        : True"
+    echo "- GPDB Standby Master     : True"
     sed -i "/^enable_standby_master:/ c\enable_standby_master: 1" $vars_common_path
    fi
    if [ "$ve" == "Y" ] || [ "$ve" == "y" ];then
     vee="True"
     sed -i "/^enable_mirror:/ c\enable_mirror: 2" $vars_common_path
    else
-     vee="False"
-     sed -i "/^enable_mirror:/ c\enable_mirror: 1" $vars_common_path
+    vee="False"
+    sed -i "/^enable_mirror:/ c\enable_mirror: 1" $vars_common_path
    fi
-   echo "- GPDB Mirror Config        : $vee"
+   echo "- GPDB Mirror Config      : $vee"
    if [ $ch1_seg_count -eq 0 ] && [ $ch2_seg_count -gt 1 ];then
     echo "- GPDB Group Count        : $vc"
    fi
    if [ $vf -eq 1 ];then
-    echo "- GPDB Segment Data Path   : /data"
+    echo "- GPDB Segment Data Path  : /data"
    else
-    echo "- GPDB Segment Data Path   : /data1 | /data2"
+    echo "- GPDB Segment Data Path  : /data1 | /data2"
    fi
    sed -i "/^sel_data_path:/ c\sel_data_path: $vf" $vars_common_path
    echo ""
-   echo "- GPDB                  : $gpdb_default_version / Instance : $vb"
-   echo "- GPCC                  : $gpcc_default_version / Display name : $vd"
-   echo "- PL/Java               : $pljava_default_version"
+   echo "- GPDB                    : $gpdb_default_version / Instance : $vb"
+   echo "- GPCC                    : $gpcc_default_version / Display name : $vd"
+   echo "- PL/Java                 : $pljava_default_version"
    echo "- PL/R                    : $plr_default_version"
-   echo "- Python Data Science   : $DataSciencePython_default_version"
-   echo "- R Data Science    : $DataScienceR_default_version"
-   echo "- PXF                  : $Include in GPDB"
+   echo "- Python Data Science     : $DataSciencePython_default_version"
+   echo "- R Data Science          : $DataScienceR_default_version"
+   echo "- PXF                     : $Include in GPDB"
    echo ""
-   echo "- VIP Environment     > IP                : $vip_ip"
-   echo "                                     > NETMASK : $vip_net"
-   echo "                                     > GATEWAY : $vip_gate"
-   echo "                                     > SOURCE : $vip_ori"
-   echo "                                     > TARGET : $vip_int"
+   echo "- VIP Environment       > IP        : $vip_ip"
+   echo "                        > NETMASK   : $vip_net"
+   echo "                        > GATEWAY   : $vip_gate"
+   echo "                        > SOURCE    : $vip_ori"
+   echo "                        > TARGET    : $vip_int"
    line -
    cat /dev/null > ./default_items
    echo "0_setup-base-setting.yml" > default_items
@@ -2135,15 +2105,15 @@ else
  echo -e " - example) ./run_playbook.sh \033[1;31;49mtest\033[0m \033[1;32;49m6.11.1\033[0m \033[1;34;49mset-up-gpdb.yml\033[0m"
  echo ""
  echo -e "[Usage 3] ./run_playbook.sh \033[1;32;49m[1st]\033[0m \033[1;34;49m[2nd]\033[0m \033[1;31;49m[3rd]\033[0m \033[1;35;49m[4th]\033[0m \033[1;36;49m[5th]\033[0m \033[1;33;49m[6th]\033[0m"
- echo -e "                  - \033[1;32;49m[1st]\033[0m GPDB version (ex> 6.11.1, 6.7.1)   \033[0;31;49m### [Caution] Defined value\033[0m"
- echo -e "                  - \033[1;34;49m[2nd]\033[0m GPDB instance unit count (ex> 4, 8)"
- echo -e "                  - \033[1;31;49m[3rd]\033[0m GPDB expand group unit count (ex> 4, 8)"
- echo -e "                  - \033[1;35;49m[4th]\033[0m GPDB web ui display name (ex> gpcc, test)"
- echo -e "                  - \033[1;36;49m[5th]\033[0m GPDB mirror chioce (ex> y or n)   \033[0;31;49m### Must select y or n\033[0m"
- echo -e "                  - \033[1;36;49m[6th]\033[0m GPDB data type choice (ex> 1 or 2)   \033[0;31;49m### Must select 1 or 2\033[0m"
- echo -e "                                1) /data"
- echo -e "                                1) /data1 | /data2"
- echo -e " - example)  ./run_playbook.sh \033[1;32;49m6.11.1\033[0m \033[1;34;49m4\033[0m \033[1;31;49m4\033[0m \033[1;35;49mtest\033[0m \033[1;36;49my\033[0m \033[1;33;49m1\033[0m"
+ echo -e "          - \033[1;32;49m[1st]\033[0m GPDB version (ex> 6.11.1, 6.7.1)   \033[0;31;49m### [Caution] Defined value\033[0m"
+ echo -e "          - \033[1;34;49m[2nd]\033[0m GPDB instance unit count (ex> 4, 8)"
+ echo -e "          - \033[1;31;49m[3rd]\033[0m GPDB expand group unit count (ex> 4, 8)"
+ echo -e "          - \033[1;35;49m[4th]\033[0m GPDB web ui display name (ex> gpcc, test)"
+ echo -e "          - \033[1;36;49m[5th]\033[0m GPDB mirror chioce (ex> y or n)   \033[0;31;49m### Must select y or n\033[0m"
+ echo -e "          - \033[1;36;49m[6th]\033[0m GPDB data type choice (ex> 1 or 2)   \033[0;31;49m### Must select 1 or 2\033[0m"
+ echo -e "                  1) /data"
+ echo -e "                  2) /data1 | /data2"
+ echo -e " - example) ./run_playbook.sh \033[1;32;49m6.11.1\033[0m \033[1;34;49m4\033[0m \033[1;31;49m4\033[0m \033[1;35;49mtest\033[0m \033[1;36;49my\033[0m \033[1;33;49m1\033[0m"
  echo -e ""
  del_tmp_file
 fi

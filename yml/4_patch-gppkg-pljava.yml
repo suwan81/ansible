@@ -1,0 +1,79 @@
+---
+- hosts:
+    - gpdb-mdw
+  gather_facts: false
+  vars_files:
+    - "vars-common.yml"
+    - "upgrade_files.yml"
+  vars:
+    - greenplum_admin_user: "gpadmin"
+  tasks:
+    - name: "Check if pljava exists"
+      shell: "gppkg -q --all | grep pljava"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+      register: pljava_version
+      ignore_errors: yes
+      failed_when: "pljava_version.rc > 2"
+
+    - name: "Remove if pljava exists"
+      shell: "gppkg -r {{ pljava_version.stdout }}"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+      ignore_errors: yes
+      when: pljava_version.rc == 0
+
+    - name: "Drop pljava Extension if exists"
+      shell: "psql -d postgres -c 'DROP EXTENSION pljava;'"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+      ignore_errors: yes
+
+    - name: "Install Greenplum-Utility-Packages (pljava) - (1)"
+      shell: "gppkg -i {{ gpdb_src_path }}/{{ pljava_upgrade_file }} -a"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+      register: gppkg_pljava_result
+      failed_when: "gppkg_pljava_result.rc != 0 and 'already' not in gppkg_pljava_result.stdout"
+
+    - name: "Replace LD_LIBRARY_PATH"
+      replace:
+        path: "{{ gpdb_home }}/greenplum_path.sh"
+        regexp: 'jre\/lib'
+        replace: 'lib'
+
+    - name: "Copy \"/usr/local/greenplum-db/greenplum_path.sh\" file to all hosts"
+      shell: "gpscp -f /home/gpadmin/gpconfigs/host_all {{ gpdb_home }}/greenplum_path.sh =:{{ gpdb_home }}/greenplum_path.sh"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+ 
+    - name: "Install Greenplum-Utility-Packages (pljava) - (2)"
+      shell: ". /usr/local/greenplum-db/greenplum_path.sh"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+
+    - name: "Restart GPDB"
+      shell: "gpstop -arf"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+
+    - name: "Install Greenplum-Utility-Packages (pljava) - (3)"
+      shell: "psql -d postgres -c 'CREATE EXTENSION pljava;'"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"

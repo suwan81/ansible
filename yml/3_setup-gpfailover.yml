@@ -1,0 +1,87 @@
+---
+- hosts:
+    - gpdb-mdw
+    - gpdb-smdw
+  gather_facts: false
+  vars_files:
+    - "vars-common.yml"
+  vars:
+    - greenplum_admin_user: "gpadmin"
+  handlers:
+    - name: "Restart NTP"
+      systemd:
+        name: ntpd
+        state: restarted
+  tasks:
+    - name: "Exit, if bd_vip='false'"
+      meta: end_play
+      when: bd_vip == "false"
+
+    - name: "Copy *.sh to /usr/local/bin"
+      copy:
+        src: "../files/{{ item }}"
+        dest: "/usr/local/bin"
+        owner: root
+        group: root
+        mode: '0755'
+        backup: no
+      with_items:
+        - "gpfailover.sh"
+        - "gpfailovershutdown.sh"
+        - "setup_gpfo_rhel6.sh"
+        - "setup_gpfo_rhel7.sh"
+        - "setup_gpfo.sh"
+        - "vip_start.sh"
+        - "vip_stop.sh"
+
+    - name: "Create vip_env.sh"
+      template:
+        src: "../templates/vip_env.sh.j2"
+        dest: "/usr/local/bin/vip_env.sh"
+        owner: root
+        group: root
+        mode: '0755'
+        backup: no
+
+    - name: "Copy init-scripts to /etc/rc.d/init.d/"
+      copy:
+        src: "../files/{{ item }}"
+        dest: "/etc/rc.d/init.d/"
+        owner: root
+        group: root
+        mode: '0755'
+        backup: no
+      with_items:
+        - "vip"
+        - "gpfailover"
+
+    - name: "Create gpfailover.service"
+      template:
+        src: "../templates/gpfailover.service.j2"
+        dest: "/usr/lib/systemd/system/gpfailover.service"
+        owner: root
+        group: root
+        mode: '0644'
+        backup: no
+
+    #- name: "Reload systemd-daemons"
+    #  shell: "systemctl daemon-reload"
+
+    - name: "Start Vip Service on mdw"
+      systemd:
+        name: vip
+        state: started
+        daemon_reload: yes
+      when: inventory_hostname in groups['gpdb-mdw']
+
+    - name: "Daemon reload & Start gpfailover service on smdw"
+      shell: "systemctl daemon-reload;service gpfailover start"
+      when: inventory_hostname in groups['gpdb-smdw']
+
+    - name: "Restart gpfailover Service on smdw - Retry"
+      shell: "systemctl restart gpfailover;systemctl status gpfailover"
+      register: gpfo_st
+      until: gpfo_st.stdout.find("active (running)") != -1
+      retries: 10
+      delay: 3
+      when: inventory_hostname in groups['gpdb-smdw']

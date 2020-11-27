@@ -1932,11 +1932,11 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
 #   echo "ch_db_st: \"$(su -l gpadmin -c 'ps =ef | grep -v grep | grep postgres | wc -l')\"" > $uninstall_yml
    gpdb_del_ver=$(ls -l /usr/local | grep "^l" | grep greenplum-db | awk '{print$11}' | awk -F'-' '{print$NF}')
    echo "gpdb_del_ver: \"$gpdb_del_ver\"" > $uninstall_yml
-   gpdb_del_path=$(ls -l /usr/local/ |grep -v "^l" | grep -w "greenplum-db-$gpdb_del_ver" | awk '{print$9}' | rev | cut -d '-' -f 2- | rev)
+   gpdb_del_path=$(ls -l /usr/local/ |grep -v "^l" | grep "greenplum-db" | grep "$gpdb_del_ver" | awk '{print$9}' | rev | cut -d '-' -f 2- | rev)
    echo "gpdb_del_path: \"$gpdb_del_path\"" >> $uninstall_yml
    gpcc_del_ver=$(ls -l /usr/local | grep "^l" | grep greenplum-cc | awk '{print$11}' | awk -F'-' '{print$NF}')
    echo "gpcc_del_ver: \"$gpcc_del_ver\"" >> $uninstall_yml
-   gpcc_del_path=$(ls -l /usr/local/ |grep -v "^l" | grep -w "greenplum-cc-$gpcc_del_ver" | awk '{print$9}' | rev | cut -d '-' -f 2- | rev)
+   gpcc_del_path=$(ls -l /usr/local/ |grep -v "^l" | grep "greenplum-cc" | grep "$gpcc_del_ver" | awk '{print$9}' | rev | cut -d '-' -f 2- | rev)
    echo "gpcc_del_path: \"$gpcc_del_path\"" >> $uninstall_yml
    echo "seg_dir: \"/data\"" >> $uninstall_yml
    echo "seg_dir1: \"/data1\"" >> $uninstall_yml

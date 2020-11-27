@@ -23,6 +23,17 @@
         group: root
         mode: '0777'
 
+    - name: "Check GPCC status"
+      shell: "gpcc status"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+      ignore_errors: yes
+      register: gpcc_status
+      when: inventory_hostname in groups['gpdb-mdw']
+      failed_when: "gpcc_status.rc > 127"
+
     - name: "Stop GPCC if running."
       shell: "gpcc stop"
       become: yes
@@ -30,7 +41,7 @@
       become_user: "{{ greenplum_admin_user }}"
       become_flags: "-l"
       ignore_errors: yes
-      when: inventory_hostname in groups['gpdb-mdw']
+      when: inventory_hostname in groups['gpdb-mdw'] and gpcc_status.stdout.find('stopped') == -1 and gpcc_status.rc != 127
 
     - name: "Check Old Backup GPCC directory (old version)"
       stat:

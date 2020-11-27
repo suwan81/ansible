@@ -91,20 +91,51 @@
         - .s.GPMC*
         - .s.PGSQL*
 
+    - name: "Remove GPDB rpm"
+      yum:
+        name: greenplum-db*
+        state: absent
+
+    - name: "Check GPDB Backup Path"
+      stat:
+        path: "{{ gpdb_del_path }}-{{ gpdb_del_ver }}_bak"
+      register: gpdb_b_path
+
+    - name: "Delete GPDB Bakcup Path if exists"
+      shell: "rm -rf {{ gpdb_del_path }}-{{ gpdb_del_ver }}_bak"
+      when: gpdb_b_path.stat.exists == true
+
     - name: "Check GPDB Path"
       stat:
-        path: "{{ gpdb_old_version }}"
+        path: "{{ gpdb_del_path }}-{{ gpdb_del_ver }}"
       register: gpdb_path
 
-    - name: "Backup - Rename old GPDB Path"
-      shell: "mv {{ gpdb_old_version }} {{ gpdb_old_version }}.old"
+    - name: "Backup GPDB Path"
+      shell: "cp -r {{ gpdb_del_path }}-{{ gpdb_del_ver }} {{ gpdb_del_path }}-{{ gpdb_del_ver }}_bak"
       when: gpdb_path.stat.exists == true
+
+    - name: "Delete GPDB Path"
+      shell: "rm -rf {{ gpdb_del_path }}-{{ gpdb_del_ver }}"
+      when: gpdb_path.stat.exists == true
+
+    - name: "Check GPCC Backup Path"
+      stat:
+        path: "{{ gpcc_del_path }}-{{ gpcc_del_ver }}_bak"
+      register: gpcc_b_path
+
+    - name: "Delete GPCC Bakcup Path if exists"
+      shell: "rm -rf {{ gpcc_del_path }}-{{ gpcc_del_ver }}_bak"
+      when: gpcc_b_path.stat.exists == true
 
     - name: "Check GPCC Path"
       stat:
-        path: "{{ gpcc_old_version }}"
+        path: "{{ gpcc_del_path }}-{{ gpcc_del_ver }}"
       register: gpcc_path
 
-    - name: "Backup - Rename old GPCC Path"
-      shell: "mv {{ gpcc_old_version }} {{ gpcc_old_version }}.old"
+    - name: "Backup GPCC Path"
+      shell: "cp -r {{ gpcc_del_path }}-{{ gpcc_del_ver }} {{ gpcc_del_path }}-{{ gpcc_del_ver }}_bak"
+      when: gpcc_path.stat.exists == true
+
+    - name: "Delete GPCC Path"
+      shell: "rm -rf {{ gpcc_del_path }}-{{ gpcc_del_ver }}"
       when: gpcc_path.stat.exists == true

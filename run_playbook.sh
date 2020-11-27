@@ -1941,6 +1941,7 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
    echo "seg_dir: \"/data\"" >> $uninstall_yml
    echo "seg_dir1: \"/data1\"" >> $uninstall_yml
    echo "seg_dir2: \"/data2\"" >> $uninstall_yml
+   echo "sdw1_gpseg0_path: \"$(su -l gpadmin -c "ssh sdw1 'find / -name "gpseg0" -type d 2> /dev/null'")\"" >> $uninstall_yml
    echo ""
    date >> ${LOG_FILE}.${LOG_TIME}
    echo "=============== Playbook Name: uninstall.yml ===============" | tee -a ${LOG_FILE}.${LOG_TIME}

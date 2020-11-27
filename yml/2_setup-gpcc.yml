@@ -68,24 +68,24 @@
 
     - name: "Check Backup GPCC directory (backup version)"
       stat:
-        path: "/usr/local/{{ gpcc_home }}-{{ gpcc_file_version }}_bak"
+        path: "/usr/local/{{ gpcc_prefix_name }}-{{ gpcc_file_version }}_bak"
       register: gpcc_b_dir
 
     - name: "Delete Backup GPCC directory if exists (backup version)"
-      shell: "rm -rf /usr/local/{{ gpcc_home }}-{{ gpcc_file_version }}_bak"
+      shell: "rm -rf /usr/local/{{ gpcc_prefix_name }}-{{ gpcc_file_version }}_bak"
       when: gpcc_b_dir.stat.exists == true
 
     - name: "Check Original GPCC directory (new version)"
       stat:
-        path: "/usr/local/{{ gpcc_home }}-{{ gpcc_file_version }}"
+        path: "/usr/local/{{ gpcc_prefix_name }}-{{ gpcc_file_version }}"
       register: gpcc_dir
 
     - name: "Backup Original GPCC directory if exists (new version)"
-      shell: "cp -r /usr/local/{{ gpcc_home }}-{{ gpcc_file_version }} /usr/local/{{ gpcc_home }}-{{ gpcc_file_version }}_bak"
+      shell: "cp -r /usr/local/{{ gpcc_prefix_name }}-{{ gpcc_file_version }} /usr/local/{{ gpcc_prefix_name }}-{{ gpcc_file_version }}_bak"
       when: gpcc_dir.stat.exists == true
 
     - name: "Delete Original GPCC directory if exists (new version)"
-      shell: "rm -rf /usr/local/{{ gpcc_home }}-{{ gpcc_file_version }}"
+      shell: "rm -rf /usr/local/{{ gpcc_prefix_name }}-{{ gpcc_file_version }}"
       when: gpcc_dir.stat.exists == true
 
     - name: "Install Greenplum Command Center"
@@ -119,7 +119,7 @@
         regexp: "{{ item.regexp1 }}"
         replace: "{{ item.replace }}"
       with_items:
-        - { regexp1: '^#export GPPERFMONHOME=', replace: 'export GPPERFMONHOME={{ gpcc_home }}' }
+        - { regexp1: '^#export GPPERFMONHOME=', replace: 'export GPPERFMONHOME=/usr/local/{{ gpcc_prefix_name }}' }
       when: inventory_hostname in groups['gpdb-mdw'] or inventory_hostname in groups['gpdb-smdw']
 
     - name: "Enabled Greenplum Command Center parameter(2)"
@@ -160,12 +160,12 @@
 
     - name: "Check Exist of MetricsCollector Package file"
       stat:
-        path: "{{ gpcc_home }}/gppkg/{{ gpcc_MetricsCollector_file_name }}"
+        path: "/usr/local/{{ gpcc_prefix_name }}/gppkg/{{ gpcc_MetricsCollector_file_name }}"
       register: MetricsCollector_stat_result
       when: inventory_hostname in groups['gpdb-mdw']
 
     - name: "Setup MetricsCollector Package"
-      shell: "gppkg -i {{ gpcc_home }}/gppkg/{{ gpcc_MetricsCollector_file_name }} -a"
+      shell: "gppkg -i /usr/local/{{ gpcc_prefix_name }}/gppkg/{{ gpcc_MetricsCollector_file_name }} -a"
       become: yes
       become_method: su
       become_user: "{{ greenplum_admin_user }}"

@@ -14,10 +14,14 @@ ntp:
     mdw:
       - "xxx.xxx.xxx.xxx prefer burst iburst"
       - "xxx.xxx.xxx.xxx burst iburst"
-    sdw:
+      - "127.127.1.0 burst iburst"
+    smdw:
       - "mdw prefer burst iburst"
       - "xxx.xxx.xxx.xxx burst iburst"
       - "xxx.xxx.xxx.xxx burst iburst"
+    sdw:
+      - "mdw prefer burst iburst"
+      - "smdw burst iburst"
 
 if_name: "{{ hostvars[inventory_hostname]['ansible_default_ipv4']['interface'] }}"
 nic_conf_file: "/etc/sysconfig/network-scripts/ifcfg-{{ if_name }}"

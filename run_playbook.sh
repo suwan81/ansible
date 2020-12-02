@@ -718,6 +718,7 @@ if [ "$gpdb_err" == "-1" ];then
  echo "$gpconf_st5" | awk 'NR!=1'
  echo "$gpconf_st6" | awk 'NR!=1'
  echo "$gpconf_st7" | awk 'NR!=1'
+ echo "$gpconf_st8" | awk 'NR!=1'
  echo ""
  echo "- GPDB Package -"
  echo "$gppkg_st" | awk 'NR!=1'

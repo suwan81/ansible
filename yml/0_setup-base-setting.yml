@@ -291,6 +291,12 @@
     - name: "Setting Resource Groups parameter(2)"
       shell: "cgconfigparser -l /etc/cgconfig.d/gpdb.conf"
 
+    - name: "Start Resource Groups Service(3)"
+      systemd:
+        name: cgconfig.service
+        state: started
+        enabled: yes
+
     - name: "Parameter setting for creating core file(1)"
       replace:
         path: "/etc/security/limits.d/20-nproc.conf"

@@ -144,11 +144,6 @@
     - name: "Change Owner: {{ gpdb_home }}*"
       shell: "chown -R gpadmin:gpadmin {{ gpdb_home }}*"
 
-    - name: "Restart NTP"
-      systemd:
-        name: ntpd
-        state: restarted
-
     - name: "Setup 'sdw' Group - Create Segment \"/data\" Directory (Primary, and Mirror)"
       file:
         path: "{{ item }}"

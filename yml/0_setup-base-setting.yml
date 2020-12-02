@@ -113,6 +113,19 @@
         - "hosts"
         - "hostname"
 
+    - name: "Set /etc/ntp.conf"
+      template:
+        src: "../templates/etc_ntp.conf.j2"
+        dest: "/etc/ntp.conf"
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: "Restart NTP"
+      systemd:
+        name: ntpd
+        state: restarted
+
     - name: "Sync /etc/resolv.conf"
       copy:
         src: "/etc/resolv.conf"

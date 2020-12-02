@@ -403,6 +403,7 @@ if [ $gpdb_ct -ne 0 ];then
  gpconf_st5=$(echo "$(su -l gpadmin -c 'gpconfig -s gp_resqueue_priority_inactivity_timeout')")
  gpconf_st6=$(echo "$(su -l gpadmin -c 'gpconfig -s xid_stop_limit')")
  gpconf_st7=$(echo "$(su -l gpadmin -c 'gpconfig -s xid_warn_limit')")
+ gpconf_st8=$(echo "$(su -l gpadmin -c 'gpconfig -s gp_resource_manager')")
  gppkg_st=$(echo "$(su -l gpadmin -c 'gppkg -q --all')")
 else
  gpdb_err="Not started GPDB!"

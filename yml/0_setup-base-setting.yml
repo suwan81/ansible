@@ -120,15 +120,16 @@
         owner: root
         group: root
         mode: '0644'
+        backup: yes
 
     - name: "Restart NTP"
       systemd:
         name: ntpd
         state: restarted
 
-    - name: "Sync /etc/resolv.conf"
-      copy:
-        src: "/etc/resolv.conf"
+    - name: "Set /etc/resolv.conf"
+      template:
+        src: "../templates/resolv.conf.j2"
         dest: "/etc/resolv.conf"
         owner: root
         group: root

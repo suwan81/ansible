@@ -10,7 +10,14 @@ disable {{ ntp.disable }}
 server {{ item }}
 {% endfor %}
 broadcastdelay 0.008
-{% else %}
+{% endif %}
+{% if inventory_hostname in groups['gpdb-smdw'] %}
+{% for item in ntp.server.smdw %}
+server {{ item }}
+{% endfor %}
+broadcastdelay 0.008
+{% endif %}
+{% if inventory_hostname in groups['gpdb-sdw'] %}
 {% for item in ntp.server.sdw %}
 server {{ item }}
 {% endfor %}

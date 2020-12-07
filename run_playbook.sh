@@ -271,15 +271,6 @@ b6=" "
 b7=" "
 b8=" "
 b9=" "
-sel_gpdb_file=$gpdb_default_file
-sel_gpcc_file=$gpcc_default_file
-#sel_hadoop_file=$hadoop_client_default_file
-sel_pljava_file=$pljava_default_file
-sel_plr_file=$plr_default_file
-sel_DataSciencePython_file=$DataSciencePython_default_file
-sel_DataScienceR_file=$DataScienceR_default_file
-sel_madlib_file=$madlib_default_file
-sel_gpcopy_file=$gpcopy_default_file
 cat /dev/null > ./select_items
 cat /dev/null > ./default_items
 sel_seg_instance=4
@@ -859,11 +850,11 @@ rm -f $uninstall._st
 ### MAIN MENU
 sm=$(echo "$1" | tr '[A-Z' '[a-z]')
 if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
+ converter_inventory_raw2lst
  ### TEXT UI
  while [ "$ms" != "x" ]
  do
   rpm -qa > /tmp/rpm_check.txt
-  converter_inventory_raw2lst
   check_segment
   init_sel
   check_vip
@@ -1031,8 +1022,9 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
   del_tmp_file
   ;;
   2)
-  init_sel
   count_file
+  check_file
+  default_to_sel
   while [ "$bms" != "m" ]
   do
    clear
@@ -1567,6 +1559,9 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
    bms="m"
    ;;
    S|s)
+   if [ "$b1" != "v" ];then
+    sel_seg_group=1
+   fi
    if [ $seg_count -ge $sel_seg_group ];then
     cat /dev/null > ./select_items
     if [ "$b0" == "v" ];then

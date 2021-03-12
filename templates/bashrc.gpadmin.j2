@@ -1,0 +1,21 @@
+# .bashrc
+
+# Source global definitions
+if [ -f /etc/bashrc ]; then
+        . /etc/bashrc
+fi
+
+# Uncomment the following line if you don't like systemctl's auto-paging feature:
+# export SYSTEMD_PAGER=
+
+### for PXF
+export JAVA_HOME=/usr/lib/jvm/{{ java_openjdk_rpm_name }}/jre
+export PXF_HOME={{ pxf_home }}
+export PXF_CONF={{ pxf_conf }}
+export PXF_HADOOP_HOME={{ pxf_hadoop_home }}
+export HADOOP_HOME={{ hadoop_home }}
+
+{% if inventory_hostname in groups['gpdb-sdw'] %}
+### for pljava
+source /usr/local/greenplum-db/greenplum_path.sh
+{% endif %}

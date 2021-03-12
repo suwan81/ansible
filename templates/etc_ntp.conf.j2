@@ -1,0 +1,25 @@
+driftfile {{ ntp.driftfile }}
+{% for item in ntp.restrict %}
+restrict {{ item }}
+{% endfor %}
+includefile {{ ntp.includefile }}
+keys {{ ntp.key_file }}
+disable {{ ntp.disable }}
+{% if inventory_hostname in groups['gpdb-mdw'] %}
+{% for item in ntp.server.mdw %}
+server {{ item }}
+{% endfor %}
+broadcastdelay 0.008
+{% endif %}
+{% if inventory_hostname in groups['gpdb-smdw'] %}
+{% for item in ntp.server.smdw %}
+server {{ item }}
+{% endfor %}
+broadcastdelay 0.008
+{% endif %}
+{% if inventory_hostname in groups['gpdb-sdw'] %}
+{% for item in ntp.server.sdw %}
+server {{ item }}
+{% endfor %}
+broadcastdelay 0.008
+{% endif %}

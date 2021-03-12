@@ -43,7 +43,7 @@ do
  db_id=$(cat $ori_map_file | tail -$i | head -1 | awk -F'|' '{print$5}')
  let db_id_num=$db_id+$seg_group*$instance_count*2*$1+$dbid_sum
  p_role=$(cat $ori_map_file | tail -$i | head -1 | awk -F'|' '{print$7}')
- 
+
  echo "$seg_host_prefix$host_num|$seg_host_prefix$host_num|$db_port|/$data_dir1/$data_dir2/$instance_prefix$content_num|$db_id_num|$content_num|$p_role"
 done
 }

@@ -1,0 +1,7 @@
+role=mdw,bd_ip=xxx.xxxx.xxx.xxx,bd_hostname=ansiblem1,bd_nodename=mdw
+role=smdw,bd_ip=xxx.xxxx.xxx.xxx,bd_hostname=ansiblem2,bd_nodename=smdw
+role=sdw,bd_ip=xxx.xxxx.xxx.xxx,bd_hostname=ansibles1,bd_nodename=sdw1
+role=sdw,bd_ip=xxx.xxxx.xxx.xxx,bd_hostname=ansibles2,bd_nodename=sdw2
+role=sdw,bd_ip=xxx.xxxx.xxx.xxx,bd_hostname=ansibles3,bd_nodename=sdw3
+role=sdw,bd_ip=xxx.xxxx.xxx.xxx,bd_hostname=ansibles4,bd_nodename=sdw4
+role=global_vars,bd_vip=xxx.xxxx.xxx.xxx,bd_ssh_root_pw=changeme,bd_ssh_gpadmin_pw=changeme,bd_db_user_pw_gpadmin=changeme,bd_vip_arping_interface=ens192,bd_vip_interface=ens192:0,bd_vip_gateway=xxx.xxxx.xxx.xxx,bd_vip_netmask=255.255.252.0

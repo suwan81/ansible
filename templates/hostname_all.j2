@@ -1,9 +1,0 @@
-{% for host in groups['gpdb-mdw'] %}
-{{ hostvars[host].bd_hostname }}
-{% endfor %}
-{% for host in groups['gpdb-smdw'] %}
-{{ hostvars[host].bd_hostname }}
-{% endfor %}
-{% for host in groups['gpdb-sdw'] %}
-{{ hostvars[host].bd_hostname }}
-{% endfor %}

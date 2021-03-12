@@ -16,19 +16,22 @@ version_files_yml=./yml/version_files.yml
 vars_common_path=./yml/vars-common.yml
 upgrade_files_yml=./yml/upgrade_files.yml
 uninstall_st=./yml/uninstall_st.yml
-sou_path=/root/gpdb-src
+#sou_path=/root/gpdb-src
 src_path=/data/staging
+cp ./version_check/* $src_path
 
-cp ./version_check/* /root/gpdb-src
-
-## /root/gpdb-src binary file check and copy to /data/staging
-if [ ! -d "$src_path" ];then
- mkdir $src_path
- cp -f $sou_path/* $src_path
-else
- rm -rf $src_path/*
- cp -f $sou_path/* $src_path
+if [ $(rpm -qa | grep "^bc-" | wc -l) -ne 1 ];then
+ yum install ./rpm_files/bc-1.06.95-13.el7.x86_64.rpm -y
 fi
+
+### /root/gpdb-src binary file check and copy to /data/staging
+#if [ ! -d "$src_path" ];then
+# mkdir $src_path
+# cp -f $sou_path/* $src_path
+#else
+# rm -rf $src_path/*
+# cp -f $sou_path/* $src_path
+#fi
 
 if [ $(cat /etc/passwd | grep gpadmin | cut -f1 -d: | wc -l) -eq 1 ];then
  chown -R gpadmin:gpadmin $src_path
@@ -43,7 +46,7 @@ function converter_inventory_raw2lst(){
  OUTPUT_MDW="inventory.lst.mdw"
  OUTPUT_SMDW="inventory.lst.smdw"
  OUTPUT_SDW="inventory.lst.sdw"
- 
+
  echo "[all:vars]" > $OUTPUT_GLOBAL
  echo "[gpdb-mdw]" > $OUTPUT_MDW
  echo "[gpdb-smdw]" > $OUTPUT_SMDW
@@ -93,13 +96,13 @@ function converter_inventory_raw2lst(){
 
  echo "========================= inventory.lst ======================="
  cat $OUTPUT
- echo "===============================================================" 
+ echo "==============================================================="
 
  rm -f $OUTPUT_GLOBAL $OUTPUT_MDW $OUTPUT_SMDW $OUTPUT_SDW
 }
 
 ### Parameter for setup gpdb
-functuon count_file(){
+function count_file(){
 gpdb_count=$(ls -l $src_path | grep -P "greenplum-db-[0-9]+" | grep "rpm" | awk '{print$9}' | wc -l)
 gpdb_file_name=$(ls -l $src_path | grep -P "greenplum-db-[0-9]+" | grep "rpm" | awk '{print$9}')
 
@@ -130,8 +133,8 @@ DataScienceR_file_name=$(ls -l $src_path | grep -P "DataScienceR-[0-9]+" | grep 
 madlib_count=$(ls -l $src_path | grep -P "madlib-[0-9]+" | grep "tar.gz" | awk '{print$9}' | wc -l)
 madlib_file_name=$(ls -l $src_path | grep -P "madlib-[0-9]+" | grep "tar.gz" | awk '{print$9}')
 
-gpcopy_count=$(ls -l $src_path | grep -P "gpcopy-[0-9]+" | grep "gppkg" | awk '{print$9}' | wc -l)
-gpcopy_file_name=$(ls -l $src_path | grep -P "gpcopy-[0-9]+" | grep "gppkg" | awk '{print$9}')
+#gpcopy_count=$(ls -l $src_path | grep -P "gpcopy-[0-9]+" | grep "gppkg" | awk '{print$9}' | wc -l)
+#gpcopy_file_name=$(ls -l $src_path | grep -P "gpcopy-[0-9]+" | grep "gppkg" | awk '{print$9}')
 }
 
 function check_file(){
@@ -171,8 +174,8 @@ DataScienceR_default_version=$(cat $def_ver | grep -P "DataScienceR-[0-9]+" | gr
 madlib_default_file=$(cat $def_ver | grep -P "madlib-[0-9]+" | grep "tar.gz")
 madlib_default_version=$(cat $def_ver | grep -P "madlib-[0-9]+" | grep "tar.gz" | awk -F'-' '{print$2}')
 
-gpcopy_default_file=$(cat $def_ver | grep -P "gpcopy-[0-9]+" | grep "gppkg")
-gpcopy_default_version=$(cat $def_ver | grep -P "gpcopy-[0-9]+" | grep "gppkg" | awk -F'-' '{print$2}' | awk -F'.tar' '{print$1}')
+#gpcopy_default_file=$(cat $def_ver | grep -P "gpcopy-[0-9]+" | grep "gppkg")
+#gpcopy_default_version=$(cat $def_ver | grep -P "gpcopy-[0-9]+" | grep "gppkg" | awk -F'-' '{print$2}' | awk -F'.tar' '{print$1}')
 }
 
 function check_exist(){
@@ -211,8 +214,8 @@ sel_gpcopy_file=$gpcopy_default_file
 ### create version_files.yml
 function create_version(){
 echo "---"
-echo "gpdb_file_name: \"$(ls -l $src_path | grep "$sel_gpdb_file" | awk'{print$9}')\""
-echo "gpdb_file_version: \"$(ls -l $src_path | grep "$sel_gpdb_file" | awk '{print9}' | awk -F'-' '{print$3}')\""
+echo "gpdb_file_name: \"$(ls -l $src_path | grep "$sel_gpdb_file" | awk '{print$9}')\""
+echo "gpdb_file_version: \"$(ls -l $src_path | grep "$sel_gpdb_file" | awk '{print$9}' | awk -F'-' '{print$3}')\""
 echo ""
 
 echo "gpcc_file_name: \"$(ls -l $src_path | grep "$sel_gpcc_file" | awk '{print$9}')\""
@@ -224,7 +227,7 @@ if [ $gpcc_ver_ch -ge 2 ];then
 else
  echo "gpcc_prefix_name: \"greenplum-cc-web\""
 fi
-echo "gpcc_MetricsCollector_file_name: \"MetricsCollector-$(ls -l $src_path | grep "sel_gpcc_file" | awk '{print$9}' | awk -F'-' '{print$4}')_gp_$(ls -l $src_path | grep "$sel_gpdb_file" | awk '{print$9}' | awk -F'-' '{print$3}')-rhel7-x86_64.gppkg\""
+echo "gpcc_MetricsCollector_file_name: \"MetricsCollector-$(ls -l $src_path | grep "$sel_gpcc_file" | awk '{print$9}' | awk -F'-' '{print$4}')_gp_$(ls -l $src_path | grep "$sel_gpdb_file" | awk '{print$9}' | awk -F'-' '{print$3}')-rhel7-x86_64.gppkg\""
 echo ""
 
 #echo "gpdb_client_file_name: \"$(ls -l $src_path | grep -P "greenplum-db-client-[0-9]+" | grep "$gpdb_client_default_file" | awk '{print$9}')\""
@@ -243,7 +246,7 @@ echo "pljava_file_name: \"$(ls -l $src_path | grep "$sel_pljava_file" | awk '{pr
 echo "pljava_file_version: \"$(ls -l $src_path | grep "$sel_pljava_file" | awk '{print$9}' | awk -F'-' '{print$2}')\""
 
 echo "plr_file_name: \"$(ls -l $src_path | grep "$sel_plr_file" | awk '{print$9}')\""
-echo "plr_file_version: \"$(ls -l $src_path | grep "$sel_pjr_file" | awk '{print$9}' | awk -F'-' '{print$2}')\""
+echo "plr_file_version: \"$(ls -l $src_path | grep "$sel_plr_file" | awk '{print$9}' | awk -F'-' '{print$2}')\""
 
 echo "DataSciencePython_file_name: \"$(ls -l $src_path | grep "$sel_DataSciencePython_file" | awk '{print$9}')\""
 echo "DataSciencePython_file_version: \"$(ls -l $src_path | grep "$sel_DataSciencePython_file" | awk '{print$9}' | awk -F'-' '{print$2}')\""
@@ -255,8 +258,8 @@ echo "madlib_file_name: \"$(ls -l $src_path | grep "$sel_madlib_file" | awk '{pr
 echo "madlib_file_archive_name: \"$(ls -l $src_path | grep "$sel_madlib_file" | awk '{print$9}' | awk -F'.tar.gz' '{print$1}')\""
 echo "madlib_file_version: \"$(ls -l $src_path | grep "$sel_madlib_file" | awk '{print$9}' | awk -F'-' '{print$2}')\""
 
-echo "gpcopy_file_name: \"$(ls -l $src_path | grep "$sel_gpcopy_file" | awk '{print$9}')\""
-echo "gpcopy_file_version: \"$(ls -l $src_path | grep "$sel_gpcopy_file" | awk '{print$9}' | awk -F'-' '{print$2}' | awk -F'.tar' '{print$1}')\""
+#echo "gpcopy_file_name: \"$(ls -l $src_path | grep "$sel_gpcopy_file" | awk '{print$9}')\""
+#echo "gpcopy_file_version: \"$(ls -l $src_path | grep "$sel_gpcopy_file" | awk '{print$9}' | awk -F'-' '{print$2}' | awk -F'.tar' '{print$1}')\""
 } > $version_files_yml
 
 ### START Initialize main menu variable
@@ -271,6 +274,15 @@ b6=" "
 b7=" "
 b8=" "
 b9=" "
+sel_gpdb_file=$gpdb_default_file
+sel_gpcc_file=$gpcc_default_file
+#sel_hadoop_file=$hadoop_client_default_file
+sel_pljava_file=$pljava_default_file
+sel_plr_file=$plr_default_file
+sel_DataSciencePython_file=$DataSciencePython_default_file
+sel_DataScienceR_file=$DataScienceR_default_file
+sel_madlib_file=$madlib_default_file
+sel_gpcopy_file=$gpcopy_default_file
 cat /dev/null > ./select_items
 cat /dev/null > ./default_items
 sel_seg_instance=4
@@ -359,12 +371,12 @@ else
  c_gpcc_ch="stopped"
 fi
 c_gpcc_path=$(ls -l /usr/local | grep greenplum-cc | grep "^l" | awk '{print$11}' | awk -F'-' '{print$3}')
-c_gpcopy_ct=$(ls -l /usr/local/greenplum-db/bin | grep gpcopy | wc -l)
-if [ $c_gpcopy_ct -eq 1 ];then
- c_gpcopy_st=$(/usr/local/greenplum-db/bin/gpcopy --version | awk '{print$NF}')
-else
- c_gpcopy_st="Not installed!"
-fi
+#c_gpcopy_ct=$(ls -l /usr/local/greenplum-db/bin | grep gpcopy | wc -l)
+#if [ $c_gpcopy_ct -eq 1 ];then
+# c_gpcopy_st=$(/usr/local/greenplum-db/bin/gpcopy --version | awk '{print$NF}')
+#else
+# c_gpcopy_st="Not installed!"
+#fi
 c_pxf_ct=0
 c_pxf_seg_c=0
 for i in $(cat /home/gpadmin/gpconfigs/host_seg)
@@ -430,7 +442,7 @@ fi
 }
 
 function page1(){
-msg_show " === OS Configuration === "
+msg_line " === OS Configuration === " " "
 echo ""
 echo "[Current<mdw> Configuration]"
 os_ver=$(cat /tmp/check_status_$(hostname) | grep "os_ver:" | awk -F':' '{print$2}')
@@ -454,7 +466,7 @@ do
  sfile=$(ls /tmp/check_status_* | grep -w "/tmp/check_status_$(cat /etc/hosts | grep -v "###" | grep -w "$var" | awk '{print$2}')")
  st_host=""
  st_host=$(cat $sfile | grep "hostname:" | awk -F':' '{print$2}')
- if [ "$os_ver" == "$(cat $sfile | grep "os_ver:" |. awk -F':' '{print$2}')" ];then
+ if [ "$os_ver" == "$(cat $sfile | grep "os_ver:" | awk -F':' '{print$2}')" ];then
   st_os="O"
  else
   st_os="-"
@@ -475,8 +487,8 @@ done
 }
 
 function page2(){
-msg_show " === Service & Deamon === "
-msg_show " (1st: Service, 2nd: Daemon) "
+msg_line " === Service & Deamon === " " "
+msg_line " (1st: Service, 2nd: Daemon) " " "
 echo ""
 mlist=(SELinux Firewall NTP RC-LOCAL KDUMP)
 printf "%-15s" ""
@@ -487,49 +499,49 @@ done
 printf "\n"
 for var in $(cat $cs_host_path)
 do
- sfile =""
+ sfile=""
  sfile=$(ls /tmp/check_status_* | grep -w "/tmp/check_status_$(cat /etc/hosts | grep -v "###" | grep -w "$var" | awk '{print$2}')")
- if [ "$(cat $sfile | grep "selinux" | awk -F':' '{print2}')" == "disabled" ];then
+ if [ "$(cat $sfile | grep "selinux" | awk -F':' '{print$2}')" == "disabled" ];then
   st_selinux="O"
  else
   st_selinux="-"
  fi
- if [ "$(cat $sfile | grep "firewall_st1" | awk -F':' '{print2}')" == "inactive" ];then
+ if [ "$(cat $sfile | grep "firewall_st1" | awk -F':' '{print$2}')" == "inactive" ];then
   st_firewall1="O"
  else
   st_firewall1="-"
  fi
- if [ "$(cat $sfile | grep "firewall_st2" | awk -F':' '{print2}')" == "disabled" ];then
+ if [ "$(cat $sfile | grep "firewall_st2" | awk -F':' '{print$2}')" == "disabled" ];then
   st_firewall2="O"
  else
   st_firewall2="-"
  fi
- if [ "$(cat $sfile | grep "ntp_st1" | awk -F':' '{print2}')" == "active" ];then
+ if [ "$(cat $sfile | grep "ntp_st1" | awk -F':' '{print$2}')" == "active" ];then
   st_ntp1="O"
  else
   st_ntp1="-"
  fi
- if [ "$(cat $sfile | grep "ntp_st2" | awk -F':' '{print2}')" == "enabled" ];then
+ if [ "$(cat $sfile | grep "ntp_st2" | awk -F':' '{print$2}')" == "enabled" ];then
   st_ntp2="O"
  else
   st_ntp2="-"
  fi
- if [ "$(cat $sfile | grep "rclocal_st1" | awk -F':' '{print2}')" == "active" ];then
+ if [ "$(cat $sfile | grep "rclocal_st1" | awk -F':' '{print$2}')" == "active" ];then
   st_rclocal1="O"
  else
   st_rclocal1="-"
  fi
- if [ "$(cat $sfile | grep "rclocal_st2" | awk -F':' '{print2}')" == "static" ];then
+ if [ "$(cat $sfile | grep "rclocal_st2" | awk -F':' '{print$2}')" == "static" ];then
   st_rclocal2="O"
  else
   st_frclocal2="-"
  fi
- if [ "$(cat $sfile | grep "kdump_st1" | awk -F':' '{print2}')" == "active" ];then
+ if [ "$(cat $sfile | grep "kdump_st1" | awk -F':' '{print$2}')" == "active" ];then
   st_kdump1="O"
  else
   st_kdump1="-"
  fi
- if [ "$(cat $sfile | grep "kdump_st2" | awk -F':' '{print2}')" == "enabled" ];then
+ if [ "$(cat $sfile | grep "kdump_st2" | awk -F':' '{print$2}')" == "enabled" ];then
   st_kdump2="O"
  else
   st_kdump2="-"
@@ -540,8 +552,8 @@ done
 }
 
 function page3(){
-msg_show " === OS Configuration === "
-msg_show " (Base on mdw parameter) "
+msg_line " === OS Configuration === " " "
+msg_line " (Base on mdw parameter) " " "
 echo ""
 mlist=(Grubby Resolve Sysctl Ulimit)
 printf "%-15s" ""
@@ -559,7 +571,8 @@ for var in $(cat $cs_host_path)
 do
  sfile=""
  sfile=$(ls /tmp/check_status_* | grep -w "/tmp/check_status_$(cat /etc/hosts | grep -v "###" | grep -w "$var" | awk '{print$2}')")
- if [ "$grubby_st" == "$(sed -n "$(($(grep -n "grubby:" $sfile | cut -d':' -f1)+1)),$(($(grep -n ":grubby" $sfile | cut -d':' -f1)-1))p" $sfile)" ];then
+# if [ "$grubby_st" == "$(sed -n "$(($(grep -n "grubby:" $sfile | cut -d':' -f1)+1)),$(($(grep -n ":grubby" $sfile | cut -d':' -f1)-1))p" $sfile)" ];then
+ if [ $(sed -n "$(($(grep -n "grubby:" $sfile | cut -d':' -f1)+1)),$(($(grep -n ":grubby" $sfile | cut -d':' -f1)-1))p" $sfile | grep args | head -1 | grep "elevator=deadline" | grep "transparent_hugepage=never" | wc -l) -eq 1 ];then
   re1="O"
  else
   re1="-"
@@ -585,8 +598,8 @@ done
 }
 
 function page4(){
-msg_show " === OS Configuration === "
-msg_show " (Base on mdw parameter) "
+msg_line " === OS Configuration === " " "
+msg_line " (Base on mdw parameter) " " "
 echo ""
 mlist=(Logind SSHD YUM Blockdev)
 printf "%-15s" ""
@@ -638,7 +651,7 @@ done
 }
 
 function page5(){
-msg_show " === OS Configuration === "
+msg_line " === OS Configuration === " " "
 echo ""
 mlist=(fstab df)
 for menu in "${mlist[@]}"
@@ -673,17 +686,17 @@ done
 }
 
 function page6(){
-msg_show " === GPDB Configuration === "
+msg_line " === GPDB Configuration === " " "
 echo ""
 if [ "$gpdb_err" == "-1" ];then
  echo "- GPDB Base Info -"
- echo -n "GPDB Version                    : "
+ echo -n "GPDB Version          : "
  echo "$gpdb_st" | grep "(Greenplum Database)" | awk '{print$8}'
- echo -n "GPDB Master Status        : "
+ echo -n "GPDB Master Status    : "
  echo  "$gpdb_st" | grep "Master instance" | awk '{print$6}'
- echo -n "GPDB Master standby      : "
+ echo -n "GPDB Master standby   : "
  echo  "$gpdb_st" | grep "Master standby" | awk '{print$6}'
- echo -n "GPDB Total instance         : "
+ echo -n "GPDB Total instanc    : "
  echo -n "$(echo -n "$gpdb_st" | grep "Total segment instance count from metadata" | awk -F'=' '{print$2}' | awk '{print$1}') "
  echo -n "(Primary: $(echo -n "$gpdb_st" | grep "Total primary segment valid" | awk -F'=' '{print$2}' | awk '{print$1}')/"
  echo -n "$(echo -n "$gpdb_st" | grep "Total primary segment failures" | awk -F'=' '{print$2}' | awk '{print$1}') , "
@@ -694,11 +707,11 @@ if [ "$gpdb_err" == "-1" ];then
  echo "Master Standby Service : $gpfo_st"
  if [ $(echo "$gpdb_st" | grep -i active | wc -l) -eq 1 ];then
   check_vip
-  echo " > VIP-IP        : $vip_ip"
-  echo " > VIP-NETMASK   : $vip_net"
-  echo " > VIP-GATEWAY   : $vip_gate"
-  echo " > VIP-SOURCE    : $vip_ori"
-  echo " > VIP-TARGET    : $vip_int"
+  echo " > VIP-IP              : $vip_ip"
+  echo " > VIP-NETMASK         : $vip_net"
+  echo " > VIP-GATEWAY         : $vip_gate"
+  echo " > VIP-SOURCE          : $vip_ori"
+  echo " > VIP-TARGET          : $vip_int"
  fi
  echo ""
  echo "- GPDB gpconfig parameter -"
@@ -717,29 +730,29 @@ if [ "$gpdb_err" == "-1" ];then
 else
  echo "$gpdb_err"
 fi
-if [ "$gpcc_err" == "-1" ];then
+if [ "$gpcc_err" == "1" ];then
  echo "- GPCC Version -"
  echo "$gpcc_ver"
  echo ""
  echo "- GPCC Status - "
- echo "$gpcc _st"
+ echo "$gpcc_st"
  echo ""
 else
  echo "$gpcc_err"
 fi
-if [ "$pxf_err" == "-1" ];then
- echo "- PXF Status -"
- echo "$pxf_st"
-else
- echo "$pxf_err"
-fi
+#if [ $pxf_err -eq 1 ];then
+# echo "- PXF Status -"
+# echo "$pxf_st"
+#else
+# echo "$pxf_err"
+#fi
 }
 
 function page_top(){
 clear
 echo ""
 line -
-msg_show " < 4. Check OS/GPDB Status > "
+msg_line " < 4. Check OS/GPDB Status > " " "
 }
 
 function page_bot(){
@@ -787,12 +800,6 @@ done
 printf "%s%${#MSG}s%s\n" "$sline" "$1" "$eline"
 }
 
-function msg_show(){
-MSG="$1"
-let COL=$(tput cols)/2-${#MSG}/2
-printf "%${COL}s$s\n" "" "$1"
-}
-
 function check_segment(){
 seg_count=$(cat ./inventory.lst | grep sdw | grep -v gpdb | wc -l)
 seg_host=$(cat ./inventory.lst | grep sdw | grep -v gpdb | head -1 | awk '{print$3}' | awk -F'=' '{print$2}')
@@ -804,7 +811,7 @@ else
  seg_host_prefix=$(echo $seg_host | rev | cut -c 2- | rev)
 fi
 sed -i "/^segment_count:/ c\segment_count: $seg_count" $vars_common_path
-sed -i "/^segment_hostname_prefix:/ c\segment_ hostname_prefix: $seg_host_prefix" $vars_common_path
+sed -i "/^segment_hostname_prefix:/ c\segment_hostname_prefix: $seg_host_prefix" $vars_common_path
 }
 
 function check_num(){
@@ -850,11 +857,11 @@ rm -f $uninstall._st
 ### MAIN MENU
 sm=$(echo "$1" | tr '[A-Z' '[a-z]')
 if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
- converter_inventory_raw2lst
  ### TEXT UI
  while [ "$ms" != "x" ]
  do
   rpm -qa > /tmp/rpm_check.txt
+  converter_inventory_raw2lst
   check_segment
   init_sel
   check_vip
@@ -885,7 +892,7 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
   echo -e -n "2) Instance count(\033[1;31;49mex> 4\033[0m): "
   read rb
   echo -e -n "3)Expand group unit\033[1;31;49mex> 4\033[0m): "
-  read rc  
+  read rc
   echo -e -n "4)GPCC Display name(\033[1;31;49mex>gpcc\033[0m): "
   read rd
   echo -e -n "5)GPDB Mirror Config(\033[1;31;49mex> y\033[0m): "
@@ -925,7 +932,7 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
     sed -i "/^segment_group_count:/ c\segment_group_count: $vc" $vars_common_path
     sed -i "/^  display_name:/ c\  display_name: \"$vd\"" $vars_common_path
     line -
-    msg_show " < 1. Default GPDB Setup > "
+    msg_line " < 1. Default GPDB Setup > " " "
     echo ""
     echo "- Segment Node Count      : $seg_count"
     if [ $ch_standby -eq 1 ];then
@@ -989,17 +996,17 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
 #     echo "8_setup-gppkg-gpcopy.yml" >> default_items
      echo "9_setup-gppkg-pxf.yml" >> default_items
      default_to_sel
-     create version
+     create_version
      cat default_items > /tmp/default_items-$now
      cat $version_files_yml > /tmp/version_files-$now
      for di in $(cat default_items)
      do
       ### Insert Playbook Name to Log File.
-      date >> ${LOG_FILE}.{LOG_TIME}
-      echo "============== Playbook Name: $di ==============" | tee -a >> ${LOG_FILE}.{LOG_TIME}
+      date >> ${LOG_FILE}.${LOG_TIME}
+      echo "============== Playbook Name: $di ==============" | tee -a ${LOG_FILE}.${LOG_TIME}
       ### Setup GPDB on Cluster
-      time ansible-playbook -i inventory.lst ./yml/$di  --extra-vars "ansible_user=root ansible_password={{ bd_ssg_root_pw }}" | tee -a ${LOG_FILE}.{LOG_TIME}
-      date >> ${LOG_FILE}.{LOG_TIME}
+      time ansible-playbook -i inventory.lst ./yml/$di  --extra-vars "ansible_user=root ansible_password={{ bd_ssh_root_pw }}" | tee -a ${LOG_FILE}.${LOG_TIME}
+      date >> ${LOG_FILE}.${LOG_TIME}
      done
      echo ""
      echo  -e "\033[1;31;49mDefault GPDB Setup Complete!\033[0m"
@@ -1018,19 +1025,18 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
   else
    echo -e "\033[1;31;49mAborted by system. Please check \"1st value(GPDB Version)\" or Binary file existence!\033[0m"
    echo "Exit ansible GPDB Setup."
-  fi 
+  fi
   del_tmp_file
   ;;
   2)
+  init_sel
   count_file
-  check_file
-  default_to_sel
   while [ "$bms" != "m" ]
   do
    clear
    echo ""
    line -
-   msg_show " < 2. Custom GPDB Setup > "
+   msg_line " < 2. Custom GPDB Setup > " " "
    echo ""
    echo -e " [\033[1;31;49m$b0\033[0m] 0) Setting OS/GPDB base"
    echo -e " [\033[1;31;49m$b1\033[0m] 1) Installing GPDB and GPDB Parameter"
@@ -1050,7 +1056,7 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
     elif [ $dsel -eq 2 ];then
      echo -e "        >> \033[1;33;49mSegment Data Type: /data1 | /data2\033[0m"
     fi
-    echo -e "        >> \033[1;37;49mmadlib: $sel_madlib_ver\033[0m   \033[1;31;49m### Installation of this package is forced\033[0m""
+    echo -e "        >> \033[1;37;49mmadlib: $sel_madlib_ver\033[0m   \033[1;31;49m### Installation of this package is forced\033[0m"
    fi
    echo -e " [\033[1;31;49m$b2\033[0m] 2) Installing GPCC"
    if [ "$b2" == "v" ];then
@@ -1080,7 +1086,7 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
    echo  -e " [\033[1;31;49m$b8\033[0m] 8) Package > GPCOPY"
    if [ "$b8" == "v" ];then
     echo -e "        >>  \033[1;32;49m$sel_gpcopy_ver\033[0m"
-   fi 
+   fi
    echo  -e " [\033[1;31;49m$b9\033[0m] 9) Package > PXF"
    echo ""
    echo " P|p) Output YAML list file"
@@ -1195,7 +1201,7 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
      if [ "$dsel" == "" ] || [ $dsel -gt 2 ];then
       dsel=1
      fi
-     sed -i "/^sel_data_path:/ c\sel_data_path: $dsel" $vars_common_path    
+     sed -i "/^sel_data_path:/ c\sel_data_path: $dsel" $vars_common_path
      if [ $madlib_count -gt 1 ];then
       echo ""
       echo "Found more than one installation madlib file."
@@ -1380,7 +1386,7 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
      for var in $DataSciencePython_file_name
      do
       echo -n "$no) "
-      echo " $var" | awk -F'-' '{print2}'
+      echo " $var" | awk -F'-' '{print$2}'
       echo "$no) $var" >> /tmp/DataSciencePython_file_list
       no=$((no+1))
      done
@@ -1486,7 +1492,7 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
     fi
    fi
    sel_gpcopy_ver=$(echo "$sel_gpcopy_file" | awk -F'-' '{print$1}')
-   ;;   
+   ;;
    9)
    if [ "$b9" == "v" ];then
     b9=" "
@@ -1559,9 +1565,6 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
    bms="m"
    ;;
    S|s)
-   if [ "$b1" != "v" ];then
-    sel_seg_group=1
-   fi
    if [ $seg_count -ge $sel_seg_group ];then
     cat /dev/null > ./select_items
     if [ "$b0" == "v" ];then
@@ -1610,7 +1613,7 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
     echo ""
     echo -n -e "Continue Process?(Yy/\033[0;31;49mNn\033[0m) "
     read conp
-    if [ "$conp" == "Y" ] || [ "$conf"== "y" ];then
+    if [ "$conp" == "Y" ] || [ "$conp" == "y" ];then
      create_version
      cat select_items  > /tmp/select_items-$now
      cat $version_files_yml > /tmp/version_files-$now
@@ -1657,7 +1660,7 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
    clear
    echo ""
    line -
-   msg_show " < 3.Patch > "
+   msg_line " < 3.Patch > " " "
    echo " [Current Status]"
    echo -n " - GPDB: "
    echo "$c_gpdb_ch | $c_gpdb_path"
@@ -1845,12 +1848,8 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
    else
     echo "Aborted by user"
     read qq
-    fi
-   else
-    echo "Aborted by user"
-    read qq
    fi
-   ;;  
+   ;;
    M|m)
    cms="m"
    ;;
@@ -1888,7 +1887,7 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
    R|r)
    clear
    cat /dev/null > $rgc
-   msg_show " < Report - OS/GPDB Status> " >> $rgc
+   msg_line " < Report - OS/GPDB Status> " " " >> $rgc
    echo "Create Time: $LOG_TIME" >> $rgc
    for (( l=1;l<$(tput cols);l++ ))
    do
@@ -1917,7 +1916,7 @@ if [ $# -eq 1 ] && [ "$sm" == "ui" ];then
   5)
   echo ""
   line -
-  msg_show " [ 5. Uninstall ] "
+  msg_line " [ 5. Uninstall ] " " "
   echo ""
   echo " - All content(GPDB, GPCC) is deleted."
   echo " - Confirm your data and parameter."
@@ -2011,14 +2010,14 @@ elif [ $# -eq 6 ];then
    let ch1_seg_count=$seg_count%$vc
    let ch2_seg_count=$seg_count/$vc
    ch_standby=$(cat inventory.lst | grep smdw | grep -v gpdb | wc -l)
-   sed -i "/^number_of_seg_instances_per_node:/ c\ number_of_seg_instances_per_node: $vb" $vars_common_path
+   sed -i "/^number_of_seg_instances_per_node:/ c\number_of_seg_instances_per_node: $vb" $vars_common_path
    let segment_group=($seg_count-$vc)/$vc
    sed -i "/^segment_group:/ c\segment_group: $segment_group" $vars_common_path
    sed -i "/^segment_group_count:/ c\segment_group_count: $vc" $vars_common_path
    sed -i "/^  display_name:/ c\  display_name: \"$vd\"" $vars_common_path
    echo ""
    line -
-   msg_show " < Default GPDB Setup > "
+   msg_line " < Default GPDB Setup > " " "
    echo ""
    echo "- Segment Node Count      : $seg_count"
    if [ $ch_standby -eq 1 ];then
@@ -2049,7 +2048,7 @@ elif [ $# -eq 6 ];then
    echo "- PL/R                    : $plr_default_version"
    echo "- Python Data Science     : $DataSciencePython_default_version"
    echo "- R Data Science          : $DataScienceR_default_version"
-   echo "- PXF                     : $Include in GPDB"
+#   echo "- PXF                     : $Include in GPDB"
    echo ""
    echo "- VIP Environment       > IP        : $vip_ip"
    echo "                        > NETMASK   : $vip_net"
@@ -2073,22 +2072,22 @@ elif [ $# -eq 6 ];then
    echo "3_setup-gpfailover.yml" >> default_items
    echo "4_setup-gppkg-pljava.yml" >> default_items
    echo "5_setup-gppkg-plr.yml" >> default_items
-   echo "6_setup-gppkg-DataSciencePython.yml" >> default_items
-   echo "7_setup-gppkg-DataScienceR.yml" >> default_items
+#   echo "6_setup-gppkg-DataSciencePython.yml" >> default_items
+#   echo "7_setup-gppkg-DataScienceR.yml" >> default_items
 #   echo "8_setup-gppkg-gpcopy.yml" >> default_items
-   echo "9_setup-gppkg-pxf.yml" >> default_items
+#   echo "9_setup-gppkg-pxf.yml" >> default_items
    default_to_sel
-   create version
+   create_version
    cat default_items > /tmp/default_items-$now
    cat $version_files_yml > /tmp/version_files-$now
    for mdi in $(cat default_items)
    do
     ### Insert Playbook Name to Log File.
-    date >> ${LOG_FILE}.{LOG_TIME}
-    echo "============== Playbook Name: $mdi ==============" | tee -a >> ${LOG_FILE}.{LOG_TIME}
+    date >> ${LOG_FILE}.${LOG_TIME}
+    echo "============== Playbook Name: $mdi ==============" | tee -a ${LOG_FILE}.${LOG_TIME}
     ### Setup GPDB on Cluster
-    time ansible-playbook -i inventory.lst ./yml/$mdi  --extra-vars "ansible_user=root ansible_password={{ bd_ssg_root_pw }}" | tee -a ${LOG_FILE}.{LOG_TIME}
-    date >> ${LOG_FILE}.{LOG_TIME}
+    time ansible-playbook -i inventory.lst ./yml/$mdi  --extra-vars "ansible_user=root ansible_password={{ bd_ssh_root_pw }}" | tee -a ${LOG_FILE}.${LOG_TIME}
+    date >> ${LOG_FILE}.${LOG_TIME}
    done
    echo ""
    echo  -e "\033[1;31;49mDefault GPDB Setup Complete!\033[0m"
@@ -2112,7 +2111,7 @@ else
  echo -e "          - \033[1;31;49m[3rd]\033[0m GPDB expand group unit count (ex> 4, 8)"
  echo -e "          - \033[1;35;49m[4th]\033[0m GPDB web ui display name (ex> gpcc, test)"
  echo -e "          - \033[1;36;49m[5th]\033[0m GPDB mirror chioce (ex> y or n)   \033[0;31;49m### Must select y or n\033[0m"
- echo -e "          - \033[1;36;49m[6th]\033[0m GPDB data type choice (ex> 1 or 2)   \033[0;31;49m### Must select 1 or 2\033[0m"
+ echo -e "          - \033[1;33;49m[6th]\033[0m GPDB data type choice (ex> 1 or 2)   \033[0;31;49m### Must select 1 or 2\033[0m"
  echo -e "                  1) /data"
  echo -e "                  2) /data1 | /data2"
  echo -e " - example) ./run_playbook.sh \033[1;32;49m6.11.1\033[0m \033[1;34;49m4\033[0m \033[1;31;49m4\033[0m \033[1;35;49mtest\033[0m \033[1;36;49my\033[0m \033[1;33;49m1\033[0m"

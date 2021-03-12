@@ -1,0 +1,40 @@
+---
+- hosts:
+    - localhost
+  gather_facts: false
+  tasks:
+    - name: "Waiting for SSH(TCP/22) on All Hosts"
+      wait_for:
+        timeout: 600
+        host: "{{ item }}"
+        port: 22
+        sleep: 3
+      with_items:
+        - "{{ groups['all'] }}"
+
+- hosts:
+    - gpdb-mdw
+  gather_facts: false
+  vars_files:
+    - "vars-common.yml"
+  vars:
+    - greenplum_admin_user: "gpadmin"
+  tasks:
+    - name: "Check GPDB standby master"
+      shell: "gpstate -f | grep \"Standby address\" | wc -l"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+      register: check_gpdb_standby
+
+#    - debug:
+#        var: check_gpdb_standby
+   
+    - name: "Install GPDB standby master"
+      shell: "echo y | gpinitstandby -s {{ hostvars[groups['gpdb-smdw'][0]].bd_hostname }}"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+      when: check_gpdb_standby.stdout == "0"

@@ -1,0 +1,171 @@
+---
+ssh_root_keys_dir: "/root/.ssh"
+
+ntp:
+  driftfile: "/var/lib/ntp/drift"
+  restrict:
+    - "default nomodify notrap nopeer noquery"
+    - "127.0.0.1"
+    - "::1"
+  includefile: "/etc/ntp/crypto/pw"
+  key_file: "/etc/ntp/keys"
+  disable: "monitor"
+  server:
+    mdw:
+      - "192.168.0.11 prefer burst iburst"
+      - "127.127.1.0 burst iburst"
+    smdw:
+      - "mdw prefer burst iburst"
+      - "192.168.0.11 burst iburst"
+    sdw:
+      - "mdw prefer burst iburst"
+      - "smdw burst iburst"
+
+if_name: "{{ hostvars[inventory_hostname]['ansible_default_ipv4']['interface'] }}"
+nic_conf_file: "/etc/sysconfig/network-scripts/ifcfg-{{ if_name }}"
+nic_mtu: "9000"
+
+gpadmin_user_home: "/home/gpadmin"
+gpdb_src_path: "/data/staging"
+gputil_path: "/data"
+#provision_src_dir: "/root/gpdb-src"
+#work_src_dir: "{{ gpadmin_user_home }}/gpdb-src"
+gpdb_rpm_prefix: "greenplum-db"
+#gpdb_rpm_version: "6.7.1"
+#gpdb_rpm_name_and_version: "{{ gpdb_rpm_prefix }}-{{ gpdb_rpm_version }}"
+#gpdb_rpm_name: "{{ gpdb_rpm_name_and_version }}-rhel7-x86_64.rpm"
+#gpdb_cc_web_zip_file_name: "greenplum-cc-web-6.1.0-gp6-rhel7-x86_64.zip"
+
+#java_openjdk_rpm_name: "java-1.8.0-openjdk-1.8.0.102-4.b14.el7.x86_64"
+java_openjdk_rpm_name: "java-1.8.0-openjdk-1.8.0.161-2.b14.el7.x86_64"
+#hadoop_client_rpm_name: "hadoop-client-2.7.3.2.6.4.0-91.noarch"
+
+gpdb_home: "/usr/local/greenplum-db"
+
+number_of_seg_instances_per_node: 4
+
+segment_count: 4
+segment_group: 0
+segment_group_count: 4
+segment_hostname_prefix: ansibles
+
+enable_mirror_seg_instances: false
+enable_standby_master: 0
+enable_mirror: 1
+
+sel_data_path: 1
+seg_data_dir_primary: "/data/primary"
+seg_data_dir_mirror: "/data/mirror"
+
+seg_data1_dir_primary: "/data1/primary"
+seg_data1_dir_mirror: "/data1/mirror"
+seg_data2_dir_primary: "/data2/primary"
+seg_data2_dir_mirror: "/data2/mirror"
+
+gpdb_conf:
+  array_name: "greenplum data platform"
+  seg_prefix: "gpseg"
+  port_base: 40000
+  mirror_port_base: 7000
+#  master_hostname: "{{ groups['gpdb-mdw'][0] }}"
+  master_hostname: "{{ hostvars[groups['gpdb-mdw'][0]].bd_hostname }}"
+  master_directory: "/data/master"
+  master_port: 5432
+  trusted_shell: "ssh"
+  check_point_segments: 8
+  encoding: "UNICODE"
+  #data_directory: "(/data/primary/ /data/primary/)"
+#  data_directory: "({% for num in range(number_of_seg_instances_per_node) %}{{ seg_data_dir_primary }}{% if loop.index < loop.length %} {% endif %}{% endfor %})"
+  data_directory: "({% if (sel_data_path | int) == 1 %}{% for num in range(number_of_seg_instances_per_node) %}{{ seg_data_dir_primary }}{% if loop.index < loop.length %} {% endif %}{% endfor %}{% else %}{% for num in range((number_of_seg_instances_per_node / 2) | int) %}{{ seg_data1_dir_primary }}{% if loop.index < loop.length %} {% endif %}{% endfor %} {% for num in range((number_of_seg_instances_per_node / 2) | int) %}{{ seg_data2_dir_primary }}{% if loop.index < loop.length %} {% endif %}{% endfor %}{% endif %})"
+#  mirror_data_directory: "({% for num in range(number_of_seg_instances_per_node) %}{{ seg_data_dir_mirror }}{% if loop.index < loop.length %} {% endif %}{% endfor %})"
+  mirror_data_conf: "{% if (sel_data_path | int) == 1 %}{% for num in range(number_of_seg_instances_per_node) %}{{ seg_data_dir_mirror }}{% if loop.index < loop.length %}<nl>{% endif %}{% endfor %}{% else %}{% for num in range((number_of_seg_instances_per_node / 2) | int) %}{{ seg_data1_dir_mirror }}{% if loop.index < loop.length %}<nl>{% endif %}{% endfor %}<nl>{% for num in range((number_of_seg_instances_per_node / 2) | int) %}{{ seg_data2_dir_mirror }}{% if loop.index < loop.length %}<nl>{% endif %}{% endfor %}{% endif %}"
+
+gpdb_master_data_directory: "{{ gpdb_conf.master_directory }}/gpseg-1"
+
+gpmon_pass: "changeme"
+
+pxf_home: "/usr/local/greenplum-db/pxf"
+pxf_conf: "/usr/local/greenplum-pxf"
+pxf_env:
+  pxf_user_impersonation: "false"
+hadoop_home: "/usr/hdp/current/hadoop-client"
+pxf_hadoop_home: "{{ hadoop_home }}"
+pxf_hdfs_default_fs: "hdfs://service.hdfs.com"
+
+s3_fs_s3a_endpoint: "data.lake.com"
+s3_fs_s3a_access_key: "shlee99.id"
+s3_fs_s3a_secret_key: "xr0ZR15NlCcengHlUjlhEwYRg93UP2pK96mnFccbB"
+s3_fs_s3a_fast_upload: "true"
+
+h500_core_site_fs: "hdfs://data.lake.com"
+x410_core_site_fs: "hdfs://data.lake.com"
+x410_core_site_fs_tmp: "hdfs://data.lake.com"
+core_site_io: 8192
+
+#fact_divide_protect_memory: "{% if enable_mirror_seg_instances %}{{ (number_of_seg_instances_per_node * 2) }}{% else %}{{ number_of_seg_instances_per_node }}{% endif %}"
+#fact_divide_protect_memory: 4
+#fact_divide_protect_memory: "{% if enable_mirror_seg_instances %}{{ (number_of_seg_instances_per_node * 2) }}{% else %}{{ number_of_seg_instances_per_node }}{% endif %}"
+gp_resqueue_priority_check: "{{ hostvars[groups['gpdb-sdw'][0]].ansible_processor_vcpus / (number_of_seg_instances_per_node * enable_mirror) }}"
+gp_resqueue_priority_value: "{% if (gp_resqueue_priority_check | int) <= 1 %}1{% else %}{{ (gp_resqueue_priority_check | int) | abs }}{% endif %}"
+
+cmds_gpconfig_file: "{{ gpadmin_user_home }}/gpconfigs/cmds_gpconfig.sh"
+cmds_gpconfig:
+  - "gpconfig -c tcp_keepalives_count -v 9"
+  - "gpconfig -c tcp_keepalives_idle -v 7200"
+  - "gpconfig -c tcp_keepalives_interval -v 75"
+  - "gpconfig -c xid_stop_limit -v 200000000 --skipvalidation"
+  - "gpconfig -c xid_warn_limit -v 300000000 --skipvalidation"
+  - "gpconfig -c gp_external_enable_exec -v on --masteronly"
+  - "gpconfig -c log_duration -v on --masteronly"
+  - "gpconfig -c log_min_duration_statement -v 1 --masteronly"
+  - "gpconfig -c log_min_messages -v WARNING --masteronly"
+  - "gpconfig -c log_statement -v 'ALL' --masteronly"
+  - "gpconfig -c max_resource_queues -v 16 --masteronly"
+  - "gpconfig -c max_appendonly_tables -v 20000 --masteronly"
+  - "gpconfig -c max_connections -m 500 -v 1000"
+  - "gpconfig -c max_prepared_transactions -v 500"
+  - "gpconfig -c superuser_reserved_connections -m 30 -v 3"
+  - "gpconfig -c gpperfmon_log_alert_level -v warning"
+  - "gpconfig -c gpconfig -c gp_resource_manager -v 'group'"
+  #- "gpconfig -c gp_enable_gpperfmon -v on --skipvalidation"
+  - "gpconfig -c gp_resqueue_priority_inactivity_timeout -v 2000000 --skipvalidation"
+  #- "gpconfig -c gp_vmem_protect_limit -v $(grep \"^MemTotal:\" /proc/meminfo | awk '{printf \"%.0f\\n\", $2/2/1024/{{ number_of_seg_instances_per_node }}}')"
+  #- "gpconfig -c gp_vmem_protect_limit -v {{ (hostvars[groups['gpdb-sdw'][0]].ansible_memtotal_mb / 2 / (fact_divide_protect_memory | int)) | int | abs }}"
+  #- "gpconfig -c gp_vmem_protect_limit -v {{ (hostvars[groups['gpdb-sdw'][0]].ansible_memtotal_mb / 2 / number_of_seg_instances_per_node) | int | abs }}"
+  - "gpconfig -c gp_vmem_protect_limit -v {{ ((hostvars[groups['gpdb-sdw'][0]].ansible_memtotal_mb - 7168) / number_of_seg_instances_per_node * 1.5) | int | abs }}"
+  #- "gpconfig -c gp_resqueue_priority_cpucores_per_segment -m {{ hostvars[groups['gpdb-mdw'][0]].ansible_processor_vcpus }} -v {{ (hostvars[groups['gpdb-sdw'][0]].ansible_processor_vcpus / number_of_seg_instances_per_node) | int | abs }}"
+  - "gpconfig -c gp_resqueue_priority_cpucores_per_segment -m {{ hostvars[groups['gpdb-mdw'][0]].ansible_processor_vcpus }} -v {{ gp_resqueue_priority_value }}"
+
+cmds_etc_file: "{{ gpadmin_user_home }}/gpconfigs/cmds_etc.sh"
+cmds_etc:
+  - "#psql -d gpadmin -c \"SET allow_system_table_mods=true;{% for nodename in groups['all'] %} UPDATE gp_segment_configuration SET hostname='{{ nodename }}' WHERE address='{{ nodename }}';{% endfor %} SET allow_system_table_mods=false;\""
+  - "createdb gpadmin; true"
+  - "psql -d gpadmin -c \"ALTER USER gpadmin WITH PASSWORD 'changeme';\""
+  - "psql -d gpadmin -c \"CREATE EXTENSION pxf;\""
+
+pg_hba_conf_path: "/data/master/gpseg-1/pg_hba.conf"
+
+#gpdb_cc_web_prefix_name: "greenplum-cc-web"
+#gpdb_cc_prefix_name: "greenplum-cc"
+#gpdb_cc_web_archive_name: "{{ gpdb_cc_web_prefix_name }}-6.1.0-gp6-rhel7-x86_64"
+#gpdb_cc_web_version: "6.1.0"
+#gpdb_cc_web_home: "/usr/local/{{ gpdb_cc_web_prefix_name }}-{{ gpdb_cc_web_version }}"
+#gpdb_cc_web_home: "/usr/local/{{ gpdb_cc_web_prefix_name }}"
+#gpdb_cc_home: "/usr/local/{{ gpdb_cc_prefix_name }}"
+
+gpcc_install_conf:
+  path: "/usr/local"
+  display_name: "gpcc"
+  #master_host: "localhost"
+  #master_host: "{{ hostvars[groups['gpdb-mdw'][0]]['bd_ip'] }}"
+  master_host: "{{ hostvars[groups['gpdb-smdw'][0]]['bd_ip'] }}"
+  #master_host: "{{ bd_vip }}"
+  master_port: "5432"
+  web_port: "28080"
+  rpc_port: "8899"
+  enable_ssl: "false"
+  enable_kerberos: "false"
+  language: "1"
+
+#gpcopy:
+#  version: "1.5.0"

@@ -1,0 +1,54 @@
+---
+- hosts:
+    - localhost
+  gather_facts: false
+  tasks:
+    - name: "Waiting for SSH(TCP/22) on All Hosts"
+      wait_for:
+        timeout: 600
+        host: "{{ item }}"
+        port: 22
+        sleep: 3
+      with_items:
+        - "{{ groups['all'] }}"
+
+- hosts:
+    - gpdb-mdw
+  gather_facts: false
+  vars_files:
+    - "vars-common.yml"
+  vars:
+    - greenplum_admin_user: "gpadmin"
+  tasks:
+    - name: "Create GPDB mirror configuration file"
+      template:
+        src: "../templates/mirror_dir.j2"
+        dest: "{{ gpadmin_user_home }}/gpconfigs/mirror_dir"
+        owner: "{{ greenplum_admin_user }}"
+        group: "{{ greenplum_admin_user }}"
+        mode: '0644'
+
+    - name: "Modify GPDB mirror configuration file"
+      replace:
+        path: "{{ gpadmin_user_home }}/gpconfigs/mirror_dir"
+        regexp: '<nl>'
+        replace: '\n'
+        owner: "{{ greenplum_admin_user }}"
+        group: "{{ greenplum_admin_user }}"
+        mode: '0644'
+
+    - name: "Create GPDB mirror environment configuration file"
+      shell: "gpaddmirrors -s -m {{ gpadmin_user_home }}/gpconfigs/mirror_dir -o {{ gpadmin_user_home }}/gpconfigs/mirror_config"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+      any_errors_fatal: true
+
+    - name: "Setup GPDB mirror environment configuration"
+      shell: "gpaddmirrors -i {{ gpadmin_user_home }}/gpconfigs/mirror_config -a"
+      become: yes
+      become_method: su
+      become_user: "{{ greenplum_admin_user }}"
+      become_flags: "-l"
+      any_errors_fatal: true

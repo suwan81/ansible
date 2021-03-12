@@ -1,0 +1,38 @@
+---
+- hosts:
+    - all
+  gather_facts: false
+  vars_files:
+    - "vars-common.yml"
+    - "version_files.yml"
+  vars:
+    - greenplum_admin_user: "gpadmin"
+  tasks:
+    - name: "Unarchive gpcopy"
+      unarchive:
+        src: "{{ gpdb_src_path }}/{{ gpcopy_file_name }}"
+        dest: "{{ gpdb_src_path }}"
+        owner: "{{ greenplum_admin_user }}"
+        group: "{{ greenplum_admin_user }}"
+        mode: '0755'
+        backup: no
+        remote_src: yes
+      when: inventory_hostname in groups['gpdb-mdw']
+
+    - name: "Install 'gpcopy' Binary"
+      copy:
+        src: "{{ gpdb_src_path }}/gpcopy-{{ gpcopy_file_version }}/{{ item }}"
+        dest: "{{ gpdb_home }}/bin"
+        owner: "{{ greenplum_admin_user }}"
+        group: "{{ greenplum_admin_user }}"
+        mode: '0755'
+        backup: no
+      with_items:
+        - "gpcopy"
+        - "gpcopy_helper"
+
+    - name: "Delete 'gpcopy' binary directory"
+      file:
+        path: "{{ gpdb_src_path }}/gpcopy-{{ gpcopy_file_version }}"
+        state: absent
+      when: inventory_hostname in groups['gpdb-mdw']

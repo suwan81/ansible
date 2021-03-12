@@ -1,0 +1,54 @@
+---
+- hosts:
+    - localhost
+  gather_facts: false
+  tasks:
+    - name: "Set /etc/hosts"
+      template:
+        src: "../templates/etc_hosts.j2"
+        dest: "/etc/hosts"
+        owner: root
+        group: root
+        mode: '0644'
+        backup: yes
+
+    - name: "Waiting for SSH(TCP/22) on All Hosts"
+      wait_for:
+        timeout: 600
+        host: "{{ item }}"
+        port: 22
+        sleep: 3
+      with_items:
+        - "{{ groups['all'] }}"
+
+- hosts:
+    - all
+  vars_files:
+    - "vars-common.yml"
+  remote_user: root
+  become: yes
+  become_method: sudo
+  connection: ssh
+  gather_facts: yes
+  tasks:
+    - name: "Disable SELinux"
+      selinux:
+        state: disabled
+
+    - name: "Stop and Disable Service of firewalld"
+      systemd:
+        name: firewalld
+        state: stopped
+        enabled: no
+
+    - name: "Modify /etc/fstab - xfs config"
+      shell: "sed -i 's/xfs     defaults/xfs     nodev,noatime,nobarrier,inode64/g' /etc/fstab"
+
+    - name: "Update Grub boot loader - elevator=deadline"
+      shell: grubby --update-kernel=ALL --args="elevator=deadline"
+
+    - name: "Update Grub boot loader - transparent_hugepage=never"
+      shell: grubby --update-kernel=ALL --args="transparent_hugepage=never"
+
+    - name: "Reboot All node"
+      shell: "shutdown -r 1"

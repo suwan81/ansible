@@ -7,7 +7,7 @@ Before use ansible-playbook.sh, check the file below
 3. templates/resolv.conf.j2
    - check the nameserver ip address
 4. It is optimized for redhat 7.5 system and ansible 2.3.1.0 version.
-5. Basically, the binary storage space is /data/staging. The files related to rhel75 and rpms are uploaded to staging of the upper repogitory.
+5. Basically, the binary storage space is /data/staging. The files related to rhel75 and rpms are uploaded to staging of the upper repository.
 The structure of the directory is as follows.
 /data/staging/
 ├── 6-11-1

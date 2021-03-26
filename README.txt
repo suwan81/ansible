@@ -1,5 +1,7 @@
 Before use ansible-playbook.sh, check the file below
 
+0. The OS repository suitable for the current version must be accessible. (RHEL 7.5)
+
 1. Must modify inventory.raw file
    - role, bd_ip, bd_hostname, bd_nodename(alias)
    - bd_vip, bd_vip_arping_interface, bd_vip_interface, bd_vip_gateway, bd_vip_network

@@ -19,7 +19,15 @@ Before use ansible-playbook.sh, check the file below
 7. To run setup_ansible_v2.3.1.0_rhel75.sh, the installation file must exist under /data/staging/rhel75.
    Save the contents of rhel75foransible.tar.gz file to the above path.
 
-8. 
+8. The GPDB version definition file must be predefined in the /data/staging or ansible-gpdb/version_check directory.
+   ex) # cat /data/staging/6-13-0 or /root/ansible-gpdb/version-check/6-13-0
+         greenplum-db-6.13.0-rhel7-x86_64.rpm
+         greenplum-cc-web-6.4.0-gp6-rhel7-x86_64.zip
+         pljava-2.0.2-gp6-rhel7_x86_64.gppkg
+         plr-3.0.3-gp6-rhel7-x86_64.gppkg
+         DataSciencePython-2.0.3-gp6-rhel7_x86_64.gppkg
+         DataScienceR-2.0.2-gp6-rhel7_x86_64.gppkg
+         madlib-1.17.0+18-gp6-rhel7-x86_64.tar.gz
 
 ** When run_playbook.sh is executed, the basic usage method is displayed.
 [How to use]
